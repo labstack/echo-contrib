@@ -29,7 +29,7 @@
   branch = "master"
   name = "github.com/labstack/echo"
   packages = [".","middleware"]
-  revision = "c73dd1f54cce6e55ef04742aaa8f4dd35f263adf"
+  revision = "dc0f2d73274fb0e722b169dc3275479c7e19555d"
 
 [[projects]]
   name = "github.com/labstack/gommon"
@@ -65,13 +65,13 @@
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["acme","acme/autocert"]
-  revision = "e1a4589e7d3ea14a3352255d04b6f1a418845e5e"
+  revision = "e7ba82683099cae71475961448ab8f903ea77c26"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "b90f89a1e7a9c1f6b918820b3daa7f08488c8594"
+  revision = "b9e8d468b01f806830d387bd9a1fe96dc68129d1"
 
 [solve-meta]
   analyzer-name = "dep"
