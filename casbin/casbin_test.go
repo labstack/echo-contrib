@@ -15,7 +15,7 @@ func testRequest(t *testing.T, ce *casbin.Enforcer, user string, path string, me
 	req.SetBasicAuth(user, "secret")
 	res := httptest.NewRecorder()
 	c := e.NewContext(req, res)
-	h := Auth(ce)(func(c echo.Context) error {
+	h := Middleware(ce)(func(c echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
 

@@ -4,4 +4,5 @@
 
 ## Packages
 
-- Casbin (https://github.com/casbin/casbin) by [@hsluoyz](https://github.com/hsluoyz)
+- `casbin` (https://github.com/casbin/casbin) by [@hsluoyz](https://github.com/hsluoyz)
+- `session` (Session middleware backed by https://github.com/gorilla/sessions) by [@vishr](https://github.com/vishr)
