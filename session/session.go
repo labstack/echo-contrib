@@ -18,6 +18,10 @@ type (
 	}
 )
 
+const (
+	key = "_session_store"
+)
+
 var (
 	// DefaultConfig is the default Session middleware config.
 	DefaultConfig = Config{
@@ -27,7 +31,7 @@ var (
 
 // Get returns a named session.
 func Get(name string, c echo.Context) (*sessions.Session, error) {
-	store := c.Get("_session_store").(sessions.Store)
+	store := c.Get(key).(sessions.Store)
 	return store.Get(c.Request(), name)
 }
 
@@ -54,7 +58,7 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 			if config.Skipper(c) {
 				return next(c)
 			}
-			c.Set("_session_store", config.Store)
+			c.Set(key, config.Store)
 			return next(c)
 		}
 	}

@@ -44,10 +44,10 @@
   version = "v1.1"
 
 [[projects]]
+  branch = "master"
   name = "github.com/labstack/echo"
   packages = [".","middleware"]
-  revision = "935a60782cbbc55110e7bd4b33120e4567cbee43"
-  version = "v3.2.1"
+  revision = "7c614588bcbe5e0f8272a6fb2e903ba76b849486"
 
 [[projects]]
   name = "github.com/labstack/gommon"
