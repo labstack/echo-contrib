@@ -10,8 +10,20 @@
 [[projects]]
   name = "github.com/casbin/casbin"
   packages = [".","config","model","persist","rbac","util"]
-  revision = "eb9c4296ddc2217a7d4a5d6595f4ec8111ae4aae"
-  version = "v0.2.0"
+  revision = "27a24f1712c2b786be8b3fc996e0c513d35bae67"
+  version = "v0.8.0"
+
+[[projects]]
+  name = "github.com/davecgh/go-spew"
+  packages = ["spew"]
+  revision = "346938d642f2ec3594ed81d874461961cd0faa76"
+  version = "v1.1.0"
+
+[[projects]]
+  name = "github.com/dghubble/sling"
+  packages = ["."]
+  revision = "eb56e89ac5088bebb12eef3cb4b293300f43608b"
+  version = "v1.1.0"
 
 [[projects]]
   name = "github.com/dgrijalva/jwt-go"
@@ -20,10 +32,10 @@
   version = "v3.0.0"
 
 [[projects]]
-  name = "github.com/go-sql-driver/mysql"
-  packages = ["."]
-  revision = "a0583e0143b1624142adab07e0e97fe106d99561"
-  version = "v1.3"
+  branch = "master"
+  name = "github.com/google/go-querystring"
+  packages = ["query"]
+  revision = "53e6ce116135b80d037921a7fdd5138cf32d7a8a"
 
 [[projects]]
   name = "github.com/gorilla/context"
@@ -44,16 +56,22 @@
   version = "v1.1"
 
 [[projects]]
-  branch = "master"
   name = "github.com/labstack/echo"
   packages = [".","middleware"]
-  revision = "7c614588bcbe5e0f8272a6fb2e903ba76b849486"
+  revision = "935a60782cbbc55110e7bd4b33120e4567cbee43"
+  version = "v3.2.1"
 
 [[projects]]
   name = "github.com/labstack/gommon"
   packages = ["bytes","color","log","random"]
   revision = "1121fd3e243c202482226a7afe4dcd07ffc4139a"
   version = "v0.2.1"
+
+[[projects]]
+  branch = "master"
+  name = "github.com/labstack/labstack-go"
+  packages = ["."]
+  revision = "cd5b2fc3f1431df1d05ea146498a28936d239142"
 
 [[projects]]
   name = "github.com/mattn/go-colorable"
@@ -66,6 +84,18 @@
   packages = ["."]
   revision = "fc9e8d8ef48496124e79ae0df75490096eccf6fe"
   version = "v0.0.2"
+
+[[projects]]
+  name = "github.com/pmezard/go-difflib"
+  packages = ["difflib"]
+  revision = "792786c7400a136282c1664665ae0a8db921c6c2"
+  version = "v1.0.0"
+
+[[projects]]
+  name = "github.com/stretchr/testify"
+  packages = ["assert"]
+  revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
+  version = "v1.1.4"
 
 [[projects]]
   branch = "master"
@@ -83,17 +113,17 @@
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["acme","acme/autocert"]
-  revision = "adbae1b6b6fb4b02448a0fc0dbbc9ba2b95b294d"
+  revision = "5ef0053f77724838734b6945dd364d3847e5de1d"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "fb4cac33e3196ff7f507ab9b2d2a44b0142f5b5a"
+  revision = "4ed4d404df456f81e878683a0363ed3013a59003"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "61341f33b8a9dbf28fb9b3fc5f83c90784202d4c4f72701162eaf9f4c6ff4817"
+  inputs-digest = "1f5bb42cfcea56e71edc48c8fa98ef8cf84d4a0be89f2739e887cc48df4369d2"
   solver-name = "gps-cdcl"
   solver-version = 1
