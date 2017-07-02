@@ -56,10 +56,10 @@
   version = "v1.1"
 
 [[projects]]
+  branch = "master"
   name = "github.com/labstack/echo"
   packages = [".","middleware"]
-  revision = "935a60782cbbc55110e7bd4b33120e4567cbee43"
-  version = "v3.2.1"
+  revision = "ee85b46a0539c3a516dc68374d49eff8b04573de"
 
 [[projects]]
   name = "github.com/labstack/gommon"
@@ -71,7 +71,7 @@
   branch = "master"
   name = "github.com/labstack/labstack-go"
   packages = ["."]
-  revision = "cd5b2fc3f1431df1d05ea146498a28936d239142"
+  revision = "ee88fb4d47cc0451bbc309f42ce2339f1a09d448"
 
 [[projects]]
   name = "github.com/mattn/go-colorable"
@@ -124,6 +124,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "1f5bb42cfcea56e71edc48c8fa98ef8cf84d4a0be89f2739e887cc48df4369d2"
+  inputs-digest = "c1dc2503c5f575851af55687e495f3752139b2b678e52e1f6fc8d1c4d6a103b2"
   solver-name = "gps-cdcl"
   solver-version = 1
