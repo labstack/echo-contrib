@@ -81,11 +81,11 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 			if config.Skipper(c) {
 				return next(c)
 			}
-			request := cube.Start(c.Request(), c.Response())
+			cr := cube.Start(c.Request(), c.Response())
 			if err = next(c); err != nil {
 				c.Error(err)
 			}
-			cube.Stop(request, c.Response().Status, c.Response().Size)
+			cube.Stop(cr, c.Response().Status, c.Response().Size)
 			return
 		}
 	}

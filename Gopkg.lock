@@ -59,7 +59,7 @@
   branch = "master"
   name = "github.com/labstack/echo"
   packages = [".","middleware"]
-  revision = "ee85b46a0539c3a516dc68374d49eff8b04573de"
+  revision = "e0ea129c5ce03a91613a4a04c992a1f32038143b"
 
 [[projects]]
   name = "github.com/labstack/gommon"
@@ -71,7 +71,7 @@
   branch = "master"
   name = "github.com/labstack/labstack-go"
   packages = ["."]
-  revision = "ee88fb4d47cc0451bbc309f42ce2339f1a09d448"
+  revision = "a7523d6c5e2f0afbbd83306080aec620c3e24dd7"
 
 [[projects]]
   name = "github.com/mattn/go-colorable"
@@ -113,13 +113,13 @@
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["acme","acme/autocert"]
-  revision = "5ef0053f77724838734b6945dd364d3847e5de1d"
+  revision = "51714a8c4ac1764f07ab4127d7f739351ced4759"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "4ed4d404df456f81e878683a0363ed3013a59003"
+  revision = "94b76065f2d2081d0fef24a6e67c571f51a6408a"
 
 [solve-meta]
   analyzer-name = "dep"
