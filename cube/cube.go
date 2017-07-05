@@ -14,11 +14,11 @@ type (
 		// Skipper defines a function to skip middleware.
 		Skipper middleware.Skipper
 
-		// Node name
-		Node string `json:"node"`
+		// App ID
+		AppID string
 
-		// Node group
-		Group string `json:"group"`
+		// App name
+		AppName string
 
 		// LabStack API key
 		APIKey string `json:"api_key"`
@@ -69,8 +69,8 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 
 	// Initialize
 	cube := labstack.NewClient(config.APIKey).Cube()
-	cube.Node = config.Node
-	cube.Group = config.Group
+	cube.AppID = config.AppID
+	cube.AppName = config.AppName
 	cube.APIKey = config.APIKey
 	cube.BatchSize = config.BatchSize
 	cube.DispatchInterval = config.DispatchInterval
@@ -81,11 +81,11 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 			if config.Skipper(c) {
 				return next(c)
 			}
-			cr := cube.Start(c.Request(), c.Response())
+			r := cube.Start(c.Request(), c.Response())
 			if err = next(c); err != nil {
 				c.Error(err)
 			}
-			cube.Stop(cr, c.Response().Status, c.Response().Size)
+			cube.Stop(r, c.Response().Status, c.Response().Size)
 			return
 		}
 	}

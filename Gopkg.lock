@@ -71,7 +71,7 @@
   branch = "master"
   name = "github.com/labstack/labstack-go"
   packages = ["."]
-  revision = "a7523d6c5e2f0afbbd83306080aec620c3e24dd7"
+  revision = "a6217d02a3bc637f0318c623f1a7dc7c7e22f6bc"
 
 [[projects]]
   name = "github.com/mattn/go-colorable"
