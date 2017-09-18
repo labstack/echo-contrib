@@ -20,6 +20,9 @@ type (
 		// App name
 		AppName string
 
+		// LabStack Account ID
+		AccountID string `json:"account_id"`
+
 		// LabStack API key
 		APIKey string `json:"api_key"`
 
@@ -44,8 +47,9 @@ var (
 )
 
 // Middleware implements Cube middleware.
-func Middleware(apiKey string) echo.MiddlewareFunc {
+func Middleware(accountID, apiKey string) echo.MiddlewareFunc {
 	c := DefaultConfig
+	c.AccountID = accountID
 	c.APIKey = apiKey
 	return MiddlewareWithConfig(c)
 }
@@ -68,7 +72,8 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 	}
 
 	// Initialize
-	cube := labstack.NewClient(config.APIKey).Cube()
+	client := labstack.NewClient(config.AccountID, config.APIKey)
+	cube := client.Cube()
 	cube.AppID = config.AppID
 	cube.AppName = config.AppName
 	cube.APIKey = config.APIKey
