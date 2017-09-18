@@ -10,6 +10,7 @@
 
 Name | Description | Author
 --- | --- | ---
-[`casbin`](https://github.com/casbin/casbin) | Access control library | [hsluoyz](https://github.com/hsluoyz)
-[`cube`](https://labstack.com/docs/cube) | HTTP analytics | [vishr](https://github.com/vishr)
-`session` | Session middleware backed by [gorilla/sessions](https://github.com/gorilla/sessions) | [vishr](https://github.com/vishr)
+[casbin](https://github.com/casbin/casbin) | Access control library | [hsluoyz](https://github.com/hsluoyz)
+[cube](https://labstack.com/docs/cube) | HTTP analytics | [vishr](https://github.com/vishr)
+[reporter](https://labstack.com/docs/log) | Error reporting | [vishr](https://github.com/vishr)
+session | Session middleware backed by [gorilla/sessions](https://github.com/gorilla/sessions) | [vishr](https://github.com/vishr)
