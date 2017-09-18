@@ -108,11 +108,12 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 
 func appendFields(f labstack.Fields, c echo.Context, config Config) {
 	f.
+		Add("id", labstack.RequestID(c.Request(), c.Response())).
 		Add("host", c.Request().Host).
 		Add("path", c.Request().URL.Path).
 		Add("method", c.Request().Method).
-		Add("client_id", c.RealIP()).
-		Add("remote_ip", c.RealIP()).
+		Add("client_id", labstack.RealIP(c.Request())).
+		Add("remote_ip", labstack.RealIP(c.Request())).
 		Add("status", c.Response().Status)
 	for _, h := range config.Headers {
 		f.Add("header_"+h, c.Request().Header.Get(h))
