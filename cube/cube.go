@@ -1,6 +1,9 @@
 package cube
 
 import (
+	"fmt"
+	"net/http"
+	"runtime"
 	"time"
 
 	"github.com/labstack/echo"
@@ -14,12 +17,6 @@ type (
 		// Skipper defines a function to skip middleware.
 		Skipper middleware.Skipper
 
-		// App ID
-		AppID string
-
-		// App name
-		AppName string
-
 		// LabStack Account ID
 		AccountID string `json:"account_id"`
 
@@ -31,6 +28,9 @@ type (
 
 		// Interval in seconds to dispatch the batch
 		DispatchInterval time.Duration `json:"dispatch_interval"`
+
+		// Additional tags
+		Tags []string `json:"tags"`
 
 		// TODO: To be implemented
 		ClientLookup string `json:"client_lookup"`
@@ -74,8 +74,6 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 	// Initialize
 	client := labstack.NewClient(config.AccountID, config.APIKey)
 	cube := client.Cube()
-	cube.AppID = config.AppID
-	cube.AppName = config.AppName
 	cube.APIKey = config.APIKey
 	cube.BatchSize = config.BatchSize
 	cube.DispatchInterval = config.DispatchInterval
@@ -86,12 +84,39 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 			if config.Skipper(c) {
 				return next(c)
 			}
-			r := cube.Start(c.Request(), c.Response())
+
+			// Start
+			cr := cube.Start(c.Request(), c.Response())
+
+			// Handle panic
+			defer func() {
+				if r := recover(); r != nil {
+					switch r := r.(type) {
+					case error:
+						err = r
+					default:
+						err = fmt.Errorf("%v", r)
+					}
+					stack := make([]byte, 4<<10) // 4 KB
+					length := runtime.Stack(stack, false)
+					cr.Error = err.Error()
+					cr.StackTrace = string(stack[:length])
+					println(c.Response().Status)
+					if c.Response().Status == http.StatusOK {
+						c.Response().Status = http.StatusInternalServerError
+					}
+				}
+
+				// Stop
+				cube.Stop(cr, c.Response().Status, c.Response().Size)
+			}()
+
+			// Next
 			if err = next(c); err != nil {
 				c.Error(err)
 			}
-			cube.Stop(r, c.Response().Status, c.Response().Size)
-			return
+
+			return nil
 		}
 	}
 }
