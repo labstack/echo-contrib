@@ -101,7 +101,6 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 					length := runtime.Stack(stack, false)
 					cr.Error = err.Error()
 					cr.StackTrace = string(stack[:length])
-					println(c.Response().Status)
 					if c.Response().Status == http.StatusOK {
 						c.Response().Status = http.StatusInternalServerError
 					}
