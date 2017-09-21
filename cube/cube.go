@@ -1,6 +1,8 @@
 package cube
 
 import (
+	"time"
+
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/labstack/labstack-go"
@@ -13,13 +15,21 @@ type (
 
 		// Skipper defines a function to skip middleware.
 		Skipper middleware.Skipper
+
+		// Number of requests in a batch
+		BatchSize int
+
+		// Interval in seconds to dispatch the batch
+		DispatchInterval time.Duration
 	}
 )
 
 var (
 	// DefaultConfig is the default Cube middleware config.
 	DefaultConfig = Config{
-		Skipper: middleware.DefaultSkipper,
+		Skipper:          middleware.DefaultSkipper,
+		BatchSize:        60,
+		DispatchInterval: 60,
 	}
 )
 
