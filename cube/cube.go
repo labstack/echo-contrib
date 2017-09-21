@@ -1,11 +1,6 @@
 package cube
 
 import (
-	"fmt"
-	"net/http"
-	"runtime"
-	"time"
-
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
 	"github.com/labstack/labstack-go"
@@ -14,35 +9,17 @@ import (
 type (
 	// Config defines the config for Cube middleware.
 	Config struct {
+		labstack.Cube
+
 		// Skipper defines a function to skip middleware.
 		Skipper middleware.Skipper
-
-		// LabStack Account ID
-		AccountID string `json:"account_id"`
-
-		// LabStack API key
-		APIKey string `json:"api_key"`
-
-		// Number of requests in a batch
-		BatchSize int `json:"batch_size"`
-
-		// Interval in seconds to dispatch the batch
-		DispatchInterval time.Duration `json:"dispatch_interval"`
-
-		// Additional tags
-		Tags []string `json:"tags"`
-
-		// TODO: To be implemented
-		ClientLookup string `json:"client_lookup"`
 	}
 )
 
 var (
 	// DefaultConfig is the default Cube middleware config.
 	DefaultConfig = Config{
-		Skipper:          middleware.DefaultSkipper,
-		BatchSize:        60,
-		DispatchInterval: 60,
+		Skipper: middleware.DefaultSkipper,
 	}
 )
 
@@ -86,28 +63,15 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 			}
 
 			// Start
-			cr := cube.Start(c.Request(), c.Response())
+			r := cube.Start(c.Request(), c.Response())
 
 			// Handle panic
 			defer func() {
-				if r := recover(); r != nil {
-					switch r := r.(type) {
-					case error:
-						err = r
-					default:
-						err = fmt.Errorf("%v", r)
-					}
-					stack := make([]byte, 4<<10) // 4 KB
-					length := runtime.Stack(stack, false)
-					cr.Error = err.Error()
-					cr.StackTrace = string(stack[:length])
-					if c.Response().Status == http.StatusOK {
-						c.Response().Status = http.StatusInternalServerError
-					}
-				}
+				// Recover
+				cube.Recover(recover(), r)
 
 				// Stop
-				cube.Stop(cr, c.Response().Status, c.Response().Size)
+				cube.Stop(r, c.Response().Status, c.Response().Size)
 			}()
 
 			// Next
