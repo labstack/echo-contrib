@@ -1,6 +1,7 @@
 package session
 
 import (
+	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo"
 	"github.com/labstack/echo/middleware"
@@ -58,6 +59,7 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 			if config.Skipper(c) {
 				return next(c)
 			}
+			defer context.Clear(c.Request())
 			c.Set(key, config.Store)
 			return next(c)
 		}
