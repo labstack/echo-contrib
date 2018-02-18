@@ -23,7 +23,11 @@
 
 [[constraint]]
   name = "github.com/casbin/casbin"
-  version = "1.0.0"
+  version = "1.4.0"
+
+[[constraint]]
+  name = "github.com/gorilla/context"
+  version = "1.1.0"
 
 [[constraint]]
   name = "github.com/gorilla/sessions"
@@ -31,8 +35,12 @@
 
 [[constraint]]
   name = "github.com/labstack/echo"
-  version = "3.2.3"
+  version = "3.2.6"
+
+[[constraint]]
+  name = "github.com/labstack/labstack-go"
+  version = "0.20.1"
 
 [[constraint]]
   name = "github.com/stretchr/testify"
-  version = "1.1.4"
+  version = "1.2.1"

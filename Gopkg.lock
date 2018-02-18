@@ -9,9 +9,9 @@
 
 [[projects]]
   name = "github.com/casbin/casbin"
-  packages = [".","config","file-adapter","model","persist","rbac","util"]
-  revision = "24e651819005cf57777db7f9028b7b79724d0983"
-  version = "v1.0.0"
+  packages = [".","config","file-adapter","model","persist","rbac","rbac/default-role-manager","util"]
+  revision = "3a17f2855cc12ad36fd614c590b9d18f46dfd65d"
+  version = "v1.4.0"
 
 [[projects]]
   name = "github.com/davecgh/go-spew"
@@ -22,8 +22,14 @@
 [[projects]]
   name = "github.com/dgrijalva/jwt-go"
   packages = ["."]
-  revision = "d2709f9f1f31ebcda9651b03077758c1f3a0018c"
-  version = "v3.0.0"
+  revision = "dbeaa9332f19a944acb5736b4456cfcc02140e29"
+  version = "v3.1.0"
+
+[[projects]]
+  name = "github.com/go-resty/resty"
+  packages = ["."]
+  revision = "00cb083b8cdc8b0fb1e1f5ebe24bbc23e0ff0cf6"
+  version = "v1.2"
 
 [[projects]]
   name = "github.com/gorilla/context"
@@ -46,14 +52,20 @@
 [[projects]]
   name = "github.com/labstack/echo"
   packages = [".","middleware"]
-  revision = "cec7629194fe4bf83b0c72d9a02d340c7a1468ac"
-  version = "3.2.3"
+  revision = "b338075a0fc6e1a0683dbf03d09b4957a289e26f"
+  version = "3.2.6"
 
 [[projects]]
   name = "github.com/labstack/gommon"
   packages = ["bytes","color","log","random"]
   revision = "57409ada9da0f2afad6664c49502f8c50fbd8476"
   version = "0.2.3"
+
+[[projects]]
+  name = "github.com/labstack/labstack-go"
+  packages = ["."]
+  revision = "806693b9e09cb07cf008da0e858dd263db9b023d"
+  version = "0.20.1"
 
 [[projects]]
   name = "github.com/mattn/go-colorable"
@@ -76,8 +88,8 @@
 [[projects]]
   name = "github.com/stretchr/testify"
   packages = ["assert"]
-  revision = "69483b4bd14f5845b5a1e55bca19e954e827f1d0"
-  version = "v1.1.4"
+  revision = "12b6f73e6084dad08a7c6e575284b177ecafbc71"
+  version = "v1.2.1"
 
 [[projects]]
   branch = "master"
@@ -95,17 +107,29 @@
   branch = "master"
   name = "golang.org/x/crypto"
   packages = ["acme","acme/autocert"]
-  revision = "847319b7fc94cab682988f93da778204da164588"
+  revision = "650f4a345ab4e5b245a3034b110ebc7299e68186"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/net"
+  packages = ["idna","publicsuffix"]
+  revision = "cbe0f9307d0156177f9dd5dc85da1a31abc5f2fb"
 
 [[projects]]
   branch = "master"
   name = "golang.org/x/sys"
   packages = ["unix"]
-  revision = "429f518978ab01db8bb6f44b66785088e7fba58b"
+  revision = "37707fdb30a5b38865cfb95e5aab41707daec7fd"
+
+[[projects]]
+  branch = "master"
+  name = "golang.org/x/text"
+  packages = ["collate","collate/build","internal/colltab","internal/gen","internal/tag","internal/triegen","internal/ucd","language","secure/bidirule","transform","unicode/bidi","unicode/cldr","unicode/norm","unicode/rangetable"]
+  revision = "4e4a3210bb54bb31f6ab2cdca2edcc0b50c420c1"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "ec01b76c8cc44cd4666413af7f8d93452e0d69f41f4339449ce6724012447af9"
+  inputs-digest = "547117d1de525cd8a73df9295b4f84f7005ad15a84586cb19beb0b64f8d46fb1"
   solver-name = "gps-cdcl"
   solver-version = 1
