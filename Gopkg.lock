@@ -76,8 +76,8 @@
 [[projects]]
   name = "github.com/labstack/labstack-go"
   packages = ["."]
-  revision = "af7e9c6b31e7b7c442a92ee93a610e8f41f46278"
-  version = "v0.20.2"
+  revision = "0588dd12ab1b72545bb21294eefd7b20e12f644c"
+  version = "0.20.3"
 
 [[projects]]
   name = "github.com/mattn/go-colorable"
@@ -154,6 +154,6 @@
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "100e27f24adb93c733d0b58416b929784b8590f8838e933bad5f785623da10b3"
+  inputs-digest = "f6a9c10790135852581b16ac6ed6af32bf63242444f66bed089f6215f646be12"
   solver-name = "gps-cdcl"
   solver-version = 1
