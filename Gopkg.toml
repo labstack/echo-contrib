@@ -39,7 +39,7 @@
 
 [[constraint]]
   name = "github.com/labstack/labstack-go"
-  version = "0.20.1"
+  version = "0.20.2"
 
 [[constraint]]
   name = "github.com/stretchr/testify"

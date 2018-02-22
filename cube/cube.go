@@ -9,7 +9,7 @@ import (
 )
 
 type (
-	// Config defines the config for LabStack cube middleware.
+	// Config defines the config for Cube middleware.
 	Config struct {
 		// Skipper defines a function to skip middleware.
 		Skipper middleware.Skipper
@@ -41,7 +41,7 @@ type (
 )
 
 var (
-	// DefaultConfig is the default LabStack cube middleware config.
+	// DefaultConfig is the default Cube middleware config.
 	DefaultConfig = Config{
 		Skipper:          middleware.DefaultSkipper,
 		BatchSize:        60,
@@ -49,14 +49,15 @@ var (
 	}
 )
 
-// Middleware implements LabStack cube middleware.
+// Middleware implements Cube middleware.
 func Middleware(accountID, apiKey string) echo.MiddlewareFunc {
 	c := DefaultConfig
+	c.AccountID = accountID
 	c.APIKey = apiKey
 	return MiddlewareWithConfig(c)
 }
 
-// MiddlewareWithConfig returns a LabStack cube middleware with config.
+// MiddlewareWithConfig returns a Cube middleware with config.
 // See: `Middleware()`.
 func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 	// Defaults
