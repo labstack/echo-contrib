@@ -12,3 +12,4 @@ Name | Description | Author
 --- | --- | ---
 [casbin](https://github.com/casbin/casbin) | Access control library | [hsluoyz](https://github.com/hsluoyz)
 session | Session middleware backed by [gorilla/sessions](https://github.com/gorilla/sessions) | [vishr](https://github.com/vishr)
+[echo-session](https://github.com/go-session/echo-session) | A efficient, safely and easy-to-use session library for Go.  | [LyricTian](https://github.com/LyricTian)
