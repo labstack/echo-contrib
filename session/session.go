@@ -8,7 +8,7 @@ import (
 )
 
 type (
-	// Config defines the config for CasbinAuth middleware.
+	// Config defines the config for Session middleware.
 	Config struct {
 		// Skipper defines a function to skip middleware.
 		Skipper middleware.Skipper
