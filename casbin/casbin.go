@@ -6,7 +6,7 @@ Simple example:
 
 	import (
 		"github.com/casbin/casbin"
-		"github.com/labstack/echo"
+		"github.com/labstack/echo/v4"
 		"github.com/labstack/echo-contrib/casbin" casbin-mw
 	)
 
@@ -25,7 +25,7 @@ Advanced example:
 
 	import (
 		"github.com/casbin/casbin"
-		"github.com/labstack/echo"
+		"github.com/labstack/echo/v4"
 		"github.com/labstack/echo-contrib/casbin" casbin-mw
 	)
 
@@ -46,8 +46,8 @@ package casbin
 
 import (
 	"github.com/casbin/casbin"
-	"github.com/labstack/echo"
-	"github.com/labstack/echo/middleware"
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 type (
