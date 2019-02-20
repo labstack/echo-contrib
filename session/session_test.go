@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,7 +19,9 @@ func TestMiddleware(t *testing.T) {
 		sess, _ := Get("test", c)
 		sess.Options.Domain = "labstack.com"
 		sess.Values["foo"] = "bar"
-		sess.Save(c.Request(), c.Response())
+		if err := sess.Save(c.Request(), c.Response()); err != nil {
+			return err
+		}
 		return c.String(http.StatusOK, "test")
 	}
 	store := sessions.NewCookieStore([]byte("secret"))
@@ -33,7 +35,7 @@ func TestMiddleware(t *testing.T) {
 	// Skipper
 	mw := MiddlewareWithConfig(config)
 	h := mw(echo.NotFoundHandler)
-	h(c)
+	assert.Error(t, h(c)) // 404
 	assert.Nil(t, c.Get(key))
 
 	// Panic
@@ -46,6 +48,6 @@ func TestMiddleware(t *testing.T) {
 	// Core
 	mw = Middleware(store)
 	h = mw(handler)
-	h(c)
+	assert.NoError(t, h(c))
 	assert.Contains(t, rec.Header().Get(echo.HeaderSetCookie), "labstack.com")
 }

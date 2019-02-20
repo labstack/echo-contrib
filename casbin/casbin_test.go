@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/casbin/casbin"
-	"github.com/labstack/echo"
+	"github.com/labstack/echo/v4"
 )
 
 func testRequest(t *testing.T, ce *casbin.Enforcer, user string, path string, method string, code int) {
