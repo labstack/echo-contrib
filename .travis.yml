@@ -8,7 +8,7 @@ env:
 install:
   - make dependency
 script:
-  - make test 
+  - make test
 after_success:
   - bash <(curl -s https://codecov.io/bash)
 matrix:
