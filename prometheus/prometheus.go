@@ -11,7 +11,7 @@ Example:
 	func main() {
 		e := echo.New()
 		// Enable metrics middleware
-		p := prometheus.NewPrometheus("echo")
+		p := prometheus.NewPrometheus("echo", nil)
 		p.Use(e)
 
 		e.Logger.Fatal(e.Start(":1323"))
@@ -29,12 +29,14 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	log "github.com/sirupsen/logrus"
 )
 
 var defaultMetricPath = "/metrics"
+var defaultSubsystem = "echo"
 
 // Standard default metrics
 //	counter, counter_vec, gauge, gauge_vec,
@@ -109,10 +111,12 @@ type Prometheus struct {
 	reqDur, reqSz, resSz prometheus.Summary
 	router               *echo.Echo
 	listenAddress        string
-	Ppg                  PrometheusPushGateway
+	Ppg                  PushGateway
 
 	MetricsList []*Metric
 	MetricsPath string
+	Subsystem   string
+	Skipper     middleware.Skipper
 
 	ReqCntURLLabelMappingFn RequestCounterURLLabelMappingFn
 
@@ -120,8 +124,8 @@ type Prometheus struct {
 	URLLabelFromContext string
 }
 
-// PrometheusPushGateway contains the configuration for pushing to a Prometheus pushgateway (optional)
-type PrometheusPushGateway struct {
+// PushGateway contains the configuration for pushing to a Prometheus pushgateway (optional)
+type PushGateway struct {
 
 	// Push interval in seconds
 	PushIntervalSeconds time.Duration
@@ -139,8 +143,11 @@ type PrometheusPushGateway struct {
 }
 
 // NewPrometheus generates a new set of metrics with a certain subsystem name
-func NewPrometheus(subsystem string, customMetricsList ...[]*Metric) *Prometheus {
+func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsList ...[]*Metric) *Prometheus {
 	var metricsList []*Metric
+	if skipper == nil {
+		skipper = middleware.DefaultSkipper
+	}
 
 	if len(customMetricsList) > 1 {
 		panic("Too many args. NewPrometheus( string, <optional []*Metric> ).")
@@ -155,6 +162,8 @@ func NewPrometheus(subsystem string, customMetricsList ...[]*Metric) *Prometheus
 	p := &Prometheus{
 		MetricsList: metricsList,
 		MetricsPath: defaultMetricPath,
+		Subsystem:   defaultSubsystem,
+		Skipper:     skipper,
 		ReqCntURLLabelMappingFn: func(c echo.Context) string {
 			return c.Path() // i.e. by default do nothing, i.e. return URL as is
 		},
@@ -357,8 +366,10 @@ func (p *Prometheus) Use(e *echo.Echo) {
 func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		if c.Path() == p.MetricsPath {
-			next(c)
-			return nil
+			return next(c)
+		}
+		if p.Skipper(c) {
+			return next(c)
 		}
 
 		start := time.Now()
@@ -385,7 +396,7 @@ func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
 		p.reqCnt.WithLabelValues(status, c.Request().Method, c.Request().Host, url).Inc()
 		p.reqSz.Observe(float64(reqSz))
 		p.resSz.Observe(resSz)
-		return nil
+		return next(c)
 	}
 }
 
