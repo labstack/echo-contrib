@@ -12,3 +12,4 @@ Name | Description | Author
 --- | --- | ---
 [casbin](https://github.com/casbin/casbin) | Access control library | [hsluoyz](https://github.com/hsluoyz)
 session | Session middleware backed by [gorilla/sessions](https://github.com/gorilla/sessions) | [vishr](https://github.com/vishr)
+jaegertracing | Jaeger tracer middleware | [carlosedp](https://github.com/carlosedp)
