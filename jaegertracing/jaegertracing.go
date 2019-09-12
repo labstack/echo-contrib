@@ -1,21 +1,21 @@
 /*
-Package tracing provides middleware to Opentracing using Jaeger.
+Package jaegertracing provides middleware to Opentracing using Jaeger.
 
 Example:
 ```
-	package main
-	import (
-		"github.com/labstack/echo/v4"
-		"echo-tracing/middleware/jaegertracing"
-	)
-	func main() {
-		e := echo.New()
-		// Enable tracing middleware
-		c := tracing.New(e, nil)
-		defer c.Close()
+package main
+import (
+    "github.com/labstack/echo-contrib/jaegertracing"
+    "github.com/labstack/echo/v4"
+)
+func main() {
+    e := echo.New()
+    // Enable tracing middleware
+    c := jaegertracing.New(e, nil)
+    defer c.Close()
 
-		e.Logger.Fatal(e.Start(":1323"))
-	}
+    e.Logger.Fatal(e.Start(":1323"))
+}
 ```
 */
 package jaegertracing
