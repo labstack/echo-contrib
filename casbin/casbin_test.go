@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/casbin/casbin"
+	"github.com/casbin/casbin/v2"
 	"github.com/labstack/echo/v4"
 )
 
@@ -37,7 +37,7 @@ func testRequest(t *testing.T, ce *casbin.Enforcer, user string, path string, me
 }
 
 func TestAuth(t *testing.T) {
-	ce := casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")
+	ce, _ := casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")
 
 	testRequest(t, ce, "alice", "/dataset1/resource1", echo.GET, 200)
 	testRequest(t, ce, "alice", "/dataset1/resource1", echo.POST, 200)
@@ -46,7 +46,7 @@ func TestAuth(t *testing.T) {
 }
 
 func TestPathWildcard(t *testing.T) {
-	ce := casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")
+	ce, _ := casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")
 
 	testRequest(t, ce, "bob", "/dataset2/resource1", "GET", 200)
 	testRequest(t, ce, "bob", "/dataset2/resource1", "POST", 200)
@@ -64,7 +64,7 @@ func TestPathWildcard(t *testing.T) {
 }
 
 func TestRBAC(t *testing.T) {
-	ce := casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")
+	ce, _ := casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")
 
 	// cathy can access all /dataset1/* resources via all methods because it has the dataset1_admin role.
 	testRequest(t, ce, "cathy", "/dataset1/item", "GET", 200)
@@ -83,4 +83,9 @@ func TestRBAC(t *testing.T) {
 	testRequest(t, ce, "cathy", "/dataset2/item", "GET", 403)
 	testRequest(t, ce, "cathy", "/dataset2/item", "POST", 403)
 	testRequest(t, ce, "cathy", "/dataset2/item", "DELETE", 403)
+}
+
+func TestEnforceError(t *testing.T) {
+	ce, _ := casbin.NewEnforcer("broken_auth_model.conf", "auth_policy.csv")
+	testRequest(t, ce, "cathy", "/dataset1/item", "GET", 500)
 }

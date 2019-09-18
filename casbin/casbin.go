@@ -5,16 +5,16 @@ Simple example:
 	package main
 
 	import (
-		"github.com/casbin/casbin"
+		"github.com/casbin/casbin/v2"
 		"github.com/labstack/echo/v4"
-		"github.com/labstack/echo-contrib/casbin" casbin-mw
+		casbin_mw "github.com/labstack/echo-contrib/casbin"
 	)
 
 	func main() {
 		e := echo.New()
 
 		// Mediate the access for every request
-		e.Use(casbin-mw.Middleware(casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")))
+		e.Use(casbin_mw.Middleware(casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")))
 
 		e.Logger.Fatal(e.Start(":1323"))
 	}
@@ -24,19 +24,19 @@ Advanced example:
 	package main
 
 	import (
-		"github.com/casbin/casbin"
+		"github.com/casbin/casbin/v2"
 		"github.com/labstack/echo/v4"
-		"github.com/labstack/echo-contrib/casbin" casbin-mw
+		casbin_mw "github.com/labstack/echo-contrib/casbin"
 	)
 
 	func main() {
-		ce := casbin.NewEnforcer("auth_model.conf", "")
+		ce, _ := casbin.NewEnforcer("auth_model.conf", "")
 		ce.AddRoleForUser("alice", "admin")
 		ce.AddPolicy(...)
 
 		e := echo.New()
 
-		echo.Use(casbin-mw.Middleware(ce))
+		e.Use(casbin_mw.Middleware(ce))
 
 		e.Logger.Fatal(e.Start(":1323"))
 	}
@@ -45,7 +45,9 @@ Advanced example:
 package casbin
 
 import (
-	"github.com/casbin/casbin"
+	"net/http"
+
+	"github.com/casbin/casbin/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 )
@@ -89,8 +91,14 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			if config.Skipper(c) || config.CheckPermission(c) {
+			if config.Skipper(c) {
 				return next(c)
+			}
+
+			if pass, err := config.CheckPermission(c); err == nil && pass {
+				return next(c)
+			} else if err != nil {
+				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
 			}
 
 			return echo.ErrForbidden
@@ -107,7 +115,7 @@ func (a *Config) GetUserName(c echo.Context) string {
 
 // CheckPermission checks the user/method/path combination from the request.
 // Returns true (permission granted) or false (permission forbidden)
-func (a *Config) CheckPermission(c echo.Context) bool {
+func (a *Config) CheckPermission(c echo.Context) (bool, error) {
 	user := a.GetUserName(c)
 	method := c.Request().Method
 	path := c.Request().URL.Path
