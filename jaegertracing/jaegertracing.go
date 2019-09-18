@@ -23,6 +23,7 @@ package jaegertracing
 import (
 	"fmt"
 	"io"
+	"log"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -32,7 +33,6 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
 )
 
@@ -64,20 +64,23 @@ var (
 // Returns Closer do be added to caller function as `defer closer.Close()`
 func New(e *echo.Echo, skipper middleware.Skipper) io.Closer {
 	// Add Opentracing instrumentation
-	cfg := config.Configuration{
-		Sampler: &config.SamplerConfig{
-			Type:  "const",
-			Param: 1,
-		},
-		Reporter: &config.ReporterConfig{
-			LogSpans:            false,
-			BufferFlushInterval: 1 * time.Second,
-		},
+	cfg, err := config.FromEnv()
+	if err != nil {
+		// parsing errors might happen here, such as when we get a string where we expect a number
+		log.Fatal("Could not parse Jaeger env vars: %s", err.Error())
 	}
-	tracer, closer, _ := cfg.New(
-		"echo-tracer",
-		config.Logger(jaeger.StdLogger),
-	)
+
+	cfg.ServiceName = "echo-tracer"
+	cfg.Sampler.Type = "const"
+	cfg.Sampler.Param = 1
+	cfg.Reporter.LogSpans = true
+	cfg.Reporter.BufferFlushInterval = 1 * time.Second
+
+	tracer, closer, err := cfg.NewTracer()
+	if err != nil {
+		log.Fatal("Could not initialize jaeger tracer: %s", err.Error())
+	}
+
 	opentracing.SetGlobalTracer(tracer)
 	e.Use(TraceWithConfig(TraceConfig{
 		Tracer:  tracer,
