@@ -191,3 +191,20 @@ func CreateChildSpan(ctx echo.Context, name string) opentracing.Span {
 	}
 	return sp
 }
+
+// NewTracedRequest generates a new traced HTTP request with opentracing headers injected into it
+func NewTracedRequest(method string, url string, body io.Reader, span opentracing.Span) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	ext.SpanKindRPCClient.Set(span)
+	ext.HTTPUrl.Set(span, url)
+	ext.HTTPMethod.Set(span, method)
+	span.Tracer().Inject(span.Context(),
+		opentracing.HTTPHeaders,
+		opentracing.HTTPHeadersCarrier(req.Header))
+
+	return req, err
+}
