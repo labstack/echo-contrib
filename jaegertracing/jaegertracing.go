@@ -23,7 +23,6 @@ package jaegertracing
 import (
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -64,21 +63,24 @@ var (
 // Returns Closer do be added to caller function as `defer closer.Close()`
 func New(e *echo.Echo, skipper middleware.Skipper) io.Closer {
 	// Add Opentracing instrumentation
-	cfg, err := config.FromEnv()
-	if err != nil {
-		// parsing errors might happen here, such as when we get a string where we expect a number
-		log.Fatal("Could not parse Jaeger env vars: %s", err.Error())
+	defcfg := config.Configuration{
+		ServiceName: "echo-tracer",
+		Sampler: &config.SamplerConfig{
+			Type:  "const",
+			Param: 1,
+		},
+		Reporter: &config.ReporterConfig{
+			LogSpans:            true,
+			BufferFlushInterval: 1 * time.Second,
+		},
 	}
-
-	cfg.ServiceName = "echo-tracer"
-	cfg.Sampler.Type = "const"
-	cfg.Sampler.Param = 1
-	cfg.Reporter.LogSpans = true
-	cfg.Reporter.BufferFlushInterval = 1 * time.Second
-
+	cfg, err := defcfg.FromEnv()
+	if err != nil {
+		panic("Could not parse Jaeger env vars: " + err.Error())
+	}
 	tracer, closer, err := cfg.NewTracer()
 	if err != nil {
-		log.Fatal("Could not initialize jaeger tracer: %s", err.Error())
+		panic("Could not initialize jaeger tracer: " + err.Error())
 	}
 
 	opentracing.SetGlobalTracer(tracer)
@@ -152,6 +154,26 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 
 // TraceFunction wraps funtion with opentracing span adding tags for the function name and caller details
 func TraceFunction(ctx echo.Context, fn interface{}, params ...interface{}) (result []reflect.Value) {
+	// Get function name
+	name := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+	// Create child span
+	parentSpan := opentracing.SpanFromContext(ctx.Request().Context())
+	sp := opentracing.StartSpan(
+		"Function - "+name,
+		opentracing.ChildOf(parentSpan.Context()))
+	defer sp.Finish()
+
+	sp.SetTag("function", name)
+
+	// Get caller function name, file and line
+	pc := make([]uintptr, 15)
+	n := runtime.Callers(2, pc)
+	frames := runtime.CallersFrames(pc[:n])
+	frame, _ := frames.Next()
+	callerDetails := fmt.Sprintf("%s - %s#%d", frame.Function, frame.File, frame.Line)
+	sp.SetTag("caller", callerDetails)
+
+	// Check params and call function
 	f := reflect.ValueOf(fn)
 	if f.Type().NumIn() != len(params) {
 		panic("incorrect number of parameters!")
@@ -160,38 +182,26 @@ func TraceFunction(ctx echo.Context, fn interface{}, params ...interface{}) (res
 	for k, in := range params {
 		inputs[k] = reflect.ValueOf(in)
 	}
-	pc, file, no, ok := runtime.Caller(1)
-	details := runtime.FuncForPC(pc)
-	name := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
-	parentSpan := opentracing.SpanFromContext(ctx.Request().Context())
-	sp := opentracing.StartSpan(
-		"Function - "+name,
-		opentracing.ChildOf(parentSpan.Context()))
-	(opentracing.Tag{Key: "function", Value: name}).Set(sp)
-	if ok {
-		callerDetails := fmt.Sprintf("%s - %s#%d", details.Name(), file, no)
-		(opentracing.Tag{Key: "caller", Value: callerDetails}).Set(sp)
-
-	}
-	defer sp.Finish()
 	return f.Call(inputs)
 }
 
 // CreateChildSpan creates a new opentracing span adding tags for the span name and caller details.
 // User must call defer `sp.Finish()`
 func CreateChildSpan(ctx echo.Context, name string) opentracing.Span {
-	pc, file, no, ok := runtime.Caller(1)
-	details := runtime.FuncForPC(pc)
 	parentSpan := opentracing.SpanFromContext(ctx.Request().Context())
 	sp := opentracing.StartSpan(
 		name,
 		opentracing.ChildOf(parentSpan.Context()))
-	(opentracing.Tag{Key: "name", Value: name}).Set(sp)
-	if ok {
-		callerDetails := fmt.Sprintf("%s - %s#%d", details.Name(), file, no)
-		(opentracing.Tag{Key: "caller", Value: callerDetails}).Set(sp)
+	sp.SetTag("name", name)
 
-	}
+	// Get caller function name, file and line
+	pc := make([]uintptr, 15)
+	n := runtime.Callers(2, pc)
+	frames := runtime.CallersFrames(pc[:n])
+	frame, _ := frames.Next()
+	callerDetails := fmt.Sprintf("%s - %s#%d", frame.Function, frame.File, frame.Line)
+	sp.SetTag("caller", callerDetails)
+
 	return sp
 }
 
