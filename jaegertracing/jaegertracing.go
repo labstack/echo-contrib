@@ -92,7 +92,6 @@ func New(e *echo.Echo, skipper middleware.Skipper) io.Closer {
 }
 
 // Trace returns a Trace middleware.
-//
 // Trace middleware traces http requests and reporting errors.
 func Trace(tracer opentracing.Tracer) echo.MiddlewareFunc {
 	c := DefaultTraceConfig
@@ -176,7 +175,8 @@ func TraceFunction(ctx echo.Context, fn interface{}, params ...interface{}) (res
 	// Check params and call function
 	f := reflect.ValueOf(fn)
 	if f.Type().NumIn() != len(params) {
-		panic("incorrect number of parameters!")
+		e := fmt.Sprintf("Incorrect number of parameters calling wrapped function %s", name)
+		panic(e)
 	}
 	inputs := make([]reflect.Value, len(params))
 	for k, in := range params {
