@@ -32,7 +32,6 @@ import (
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
 )
 
@@ -64,20 +63,26 @@ var (
 // Returns Closer do be added to caller function as `defer closer.Close()`
 func New(e *echo.Echo, skipper middleware.Skipper) io.Closer {
 	// Add Opentracing instrumentation
-	cfg := config.Configuration{
+	defcfg := config.Configuration{
+		ServiceName: "echo-tracer",
 		Sampler: &config.SamplerConfig{
 			Type:  "const",
 			Param: 1,
 		},
 		Reporter: &config.ReporterConfig{
-			LogSpans:            false,
+			LogSpans:            true,
 			BufferFlushInterval: 1 * time.Second,
 		},
 	}
-	tracer, closer, _ := cfg.New(
-		"echo-tracer",
-		config.Logger(jaeger.StdLogger),
-	)
+	cfg, err := defcfg.FromEnv()
+	if err != nil {
+		panic("Could not parse Jaeger env vars: " + err.Error())
+	}
+	tracer, closer, err := cfg.NewTracer()
+	if err != nil {
+		panic("Could not initialize jaeger tracer: " + err.Error())
+	}
+
 	opentracing.SetGlobalTracer(tracer)
 	e.Use(TraceWithConfig(TraceConfig{
 		Tracer:  tracer,
@@ -87,7 +92,6 @@ func New(e *echo.Echo, skipper middleware.Skipper) io.Closer {
 }
 
 // Trace returns a Trace middleware.
-//
 // Trace middleware traces http requests and reporting errors.
 func Trace(tracer opentracing.Tracer) echo.MiddlewareFunc {
 	c := DefaultTraceConfig
@@ -149,45 +153,71 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 
 // TraceFunction wraps funtion with opentracing span adding tags for the function name and caller details
 func TraceFunction(ctx echo.Context, fn interface{}, params ...interface{}) (result []reflect.Value) {
+	// Get function name
+	name := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
+	// Create child span
+	parentSpan := opentracing.SpanFromContext(ctx.Request().Context())
+	sp := opentracing.StartSpan(
+		"Function - "+name,
+		opentracing.ChildOf(parentSpan.Context()))
+	defer sp.Finish()
+
+	sp.SetTag("function", name)
+
+	// Get caller function name, file and line
+	pc := make([]uintptr, 15)
+	n := runtime.Callers(2, pc)
+	frames := runtime.CallersFrames(pc[:n])
+	frame, _ := frames.Next()
+	callerDetails := fmt.Sprintf("%s - %s#%d", frame.Function, frame.File, frame.Line)
+	sp.SetTag("caller", callerDetails)
+
+	// Check params and call function
 	f := reflect.ValueOf(fn)
 	if f.Type().NumIn() != len(params) {
-		panic("incorrect number of parameters!")
+		e := fmt.Sprintf("Incorrect number of parameters calling wrapped function %s", name)
+		panic(e)
 	}
 	inputs := make([]reflect.Value, len(params))
 	for k, in := range params {
 		inputs[k] = reflect.ValueOf(in)
 	}
-	pc, file, no, ok := runtime.Caller(1)
-	details := runtime.FuncForPC(pc)
-	name := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
-	parentSpan := opentracing.SpanFromContext(ctx.Request().Context())
-	sp := opentracing.StartSpan(
-		"Function - "+name,
-		opentracing.ChildOf(parentSpan.Context()))
-	(opentracing.Tag{Key: "function", Value: name}).Set(sp)
-	if ok {
-		callerDetails := fmt.Sprintf("%s - %s#%d", details.Name(), file, no)
-		(opentracing.Tag{Key: "caller", Value: callerDetails}).Set(sp)
-
-	}
-	defer sp.Finish()
 	return f.Call(inputs)
 }
 
 // CreateChildSpan creates a new opentracing span adding tags for the span name and caller details.
 // User must call defer `sp.Finish()`
 func CreateChildSpan(ctx echo.Context, name string) opentracing.Span {
-	pc, file, no, ok := runtime.Caller(1)
-	details := runtime.FuncForPC(pc)
 	parentSpan := opentracing.SpanFromContext(ctx.Request().Context())
 	sp := opentracing.StartSpan(
 		name,
 		opentracing.ChildOf(parentSpan.Context()))
-	(opentracing.Tag{Key: "name", Value: name}).Set(sp)
-	if ok {
-		callerDetails := fmt.Sprintf("%s - %s#%d", details.Name(), file, no)
-		(opentracing.Tag{Key: "caller", Value: callerDetails}).Set(sp)
+	sp.SetTag("name", name)
 
-	}
+	// Get caller function name, file and line
+	pc := make([]uintptr, 15)
+	n := runtime.Callers(2, pc)
+	frames := runtime.CallersFrames(pc[:n])
+	frame, _ := frames.Next()
+	callerDetails := fmt.Sprintf("%s - %s#%d", frame.Function, frame.File, frame.Line)
+	sp.SetTag("caller", callerDetails)
+
 	return sp
+}
+
+// NewTracedRequest generates a new traced HTTP request with opentracing headers injected into it
+func NewTracedRequest(method string, url string, body io.Reader, span opentracing.Span) (*http.Request, error) {
+	req, err := http.NewRequest(method, url, nil)
+	if err != nil {
+		panic(err.Error())
+	}
+
+	ext.SpanKindRPCClient.Set(span)
+	ext.HTTPUrl.Set(span, url)
+	ext.HTTPMethod.Set(span, method)
+	span.Tracer().Inject(span.Context(),
+		opentracing.HTTPHeaders,
+		opentracing.HTTPHeadersCarrier(req.Header))
+
+	return req, err
 }
