@@ -30,9 +30,9 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/gommon/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	log "github.com/sirupsen/logrus"
 )
 
 var defaultMetricPath = "/metrics"
@@ -74,7 +74,7 @@ var standardMetrics = []*Metric{
 }
 
 /*
-RequestCounterURLLabelMappingFn is a function which can be supplied to the middleware to control
+RequestCounterURLLabelMappingFunc is a function which can be supplied to the middleware to control
 the cardinality of the request counter's "url" label, which might be required in some contexts.
 For instance, if for a "/customer/:name" route you don't want to generate a time series for every
 possible customer name, you could use this function:
@@ -92,7 +92,7 @@ func(c echo.Context) string {
 
 which would map "/customer/alice" and "/customer/bob" to their template "/customer/:name".
 */
-type RequestCounterURLLabelMappingFn func(c echo.Context) string
+type RequestCounterURLLabelMappingFunc func(c echo.Context) string
 
 // Metric is a definition for the name, description, type, ID, and
 // prometheus.Collector type (i.e. CounterVec, Summary, etc) of each metric
@@ -118,7 +118,7 @@ type Prometheus struct {
 	Subsystem   string
 	Skipper     middleware.Skipper
 
-	ReqCntURLLabelMappingFn RequestCounterURLLabelMappingFn
+	RequestCounterURLLabelMappingFunc RequestCounterURLLabelMappingFunc
 
 	// Context string to use as a prometheus URL label
 	URLLabelFromContext string
@@ -126,7 +126,6 @@ type Prometheus struct {
 
 // PushGateway contains the configuration for pushing to a Prometheus pushgateway (optional)
 type PushGateway struct {
-
 	// Push interval in seconds
 	PushIntervalSeconds time.Duration
 
@@ -164,7 +163,7 @@ func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsLi
 		MetricsPath: defaultMetricPath,
 		Subsystem:   defaultSubsystem,
 		Skipper:     skipper,
-		ReqCntURLLabelMappingFn: func(c echo.Context) string {
+		RequestCounterURLLabelMappingFunc: func(c echo.Context) string {
 			return c.Path() // i.e. by default do nothing, i.e. return URL as is
 		},
 	}
@@ -208,7 +207,6 @@ func (p *Prometheus) SetPushGatewayJob(j string) {
 
 // SetMetricsPath set metrics paths
 func (p *Prometheus) SetMetricsPath(e *echo.Echo) {
-
 	if p.listenAddress != "" {
 		p.router.GET(p.MetricsPath, prometheusHandler())
 		p.runServer()
@@ -226,7 +224,7 @@ func (p *Prometheus) runServer() {
 func (p *Prometheus) getMetrics() []byte {
 	response, err := http.Get(p.Ppg.MetricsURL)
 	if err != nil {
-		log.WithError(err).Errorln("Error getting metrics")
+		log.Errorf("Error getting metrics: %v", err)
 	}
 	defer response.Body.Close()
 	body, _ := ioutil.ReadAll(response.Body)
@@ -246,7 +244,7 @@ func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
 	req, err := http.NewRequest("POST", p.getPushGatewayURL(), bytes.NewBuffer(metrics))
 	client := &http.Client{}
 	if _, err = client.Do(req); err != nil {
-		log.WithError(err).Errorln("Error sending to push gateway")
+		log.Errorf("Error sending to push gateway: %v", err)
 	}
 }
 
@@ -340,7 +338,7 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 	for _, metricDef := range p.MetricsList {
 		metric := NewMetric(metricDef, subsystem)
 		if err := prometheus.Register(metric); err != nil {
-			log.WithError(err).Errorf("%s could not be registered in Prometheus", metricDef.Name)
+			log.Errorf("%s could not be registered in Prometheus: %v", metricDef.Name, err)
 		}
 		switch metricDef {
 		case reqCnt:
@@ -381,7 +379,7 @@ func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
 		resSz := float64(c.Response().Size)
 
 		p.reqDur.Observe(elapsed)
-		url := p.ReqCntURLLabelMappingFn(c)
+		url := p.RequestCounterURLLabelMappingFunc(c)
 
 		if len(p.URLLabelFromContext) > 0 {
 			u := c.Get(p.URLLabelFromContext)
