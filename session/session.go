@@ -32,7 +32,11 @@ var (
 
 // Get returns a named session.
 func Get(name string, c echo.Context) (*sessions.Session, error) {
-	store := c.Get(key).(sessions.Store)
+	s := c.Get(key)
+	if s == nil {
+		return nil, fmt.Errorf("%q session not found", name)
+	}
+	store := s.(sessions.Store)
 	return store.Get(c.Request(), name)
 }
 
