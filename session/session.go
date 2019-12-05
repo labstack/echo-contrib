@@ -1,6 +1,8 @@
 package session
 
 import (
+	"fmt"
+
 	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo/v4"
