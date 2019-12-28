@@ -362,7 +362,7 @@ func (p *Prometheus) Use(e *echo.Echo) {
 
 // HandlerFunc defines handler function for middleware
 func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
+	return func(c echo.Context) (err error) {
 		if c.Path() == p.MetricsPath {
 			return next(c)
 		}
@@ -372,6 +372,10 @@ func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
 
 		start := time.Now()
 		reqSz := computeApproximateRequestSize(c.Request())
+
+		if err = next(c); err != nil {
+			c.Error(err)
+		}
 
 		status := strconv.Itoa(c.Response().Status)
 
@@ -392,7 +396,8 @@ func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
 		p.reqCnt.WithLabelValues(status, c.Request().Method, c.Request().Host, url).Inc()
 		p.reqSz.Observe(float64(reqSz))
 		p.resSz.Observe(resSz)
-		return next(c)
+
+		return
 	}
 }
 
