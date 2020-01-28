@@ -75,7 +75,7 @@ var (
 //
 // For valid credentials it calls the next handler.
 // For missing or invalid credentials, it sends "401 - Unauthorized" response.
-func Middleware(ce *casbin.Enforcer) echo.MiddlewareFunc {
+func Middleware(ce *casbin.Enforcer, e error) echo.MiddlewareFunc {
 	c := DefaultConfig
 	c.Enforcer = ce
 	return MiddlewareWithConfig(c)
