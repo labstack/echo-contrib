@@ -22,7 +22,6 @@ package prometheus
 
 import (
 	"bytes"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"strconv"
@@ -33,6 +32,7 @@ import (
 	"github.com/labstack/gommon/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/expfmt"
 )
 
 var defaultMetricPath = "/metrics"
@@ -133,10 +133,6 @@ type PushGateway struct {
 	// where JOBNAME can be any string of your choice
 	PushGatewayURL string
 
-	// Local metrics URL where metrics are fetched from, this could be ommited in the future
-	// if implemented using prometheus common/expfmt instead
-	MetricsURL string
-
 	// pushgateway job name, defaults to "echo"
 	Job string
 }
@@ -174,10 +170,9 @@ func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsLi
 }
 
 // SetPushGateway sends metrics to a remote pushgateway exposed on pushGatewayURL
-// every pushIntervalSeconds. Metrics are fetched from metricsURL
-func (p *Prometheus) SetPushGateway(pushGatewayURL, metricsURL string, pushIntervalSeconds time.Duration) {
+// every pushIntervalSeconds. Metrics are fetched from
+func (p *Prometheus) SetPushGateway(pushGatewayURL string, pushIntervalSeconds time.Duration) {
 	p.Ppg.PushGatewayURL = pushGatewayURL
-	p.Ppg.MetricsURL = metricsURL
 	p.Ppg.PushIntervalSeconds = pushIntervalSeconds
 	p.startPushTicker()
 }
@@ -222,14 +217,13 @@ func (p *Prometheus) runServer() {
 }
 
 func (p *Prometheus) getMetrics() []byte {
-	response, err := http.Get(p.Ppg.MetricsURL)
-	if err != nil {
-		log.Errorf("Error getting metrics: %v", err)
-	}
-	defer response.Body.Close()
-	body, _ := ioutil.ReadAll(response.Body)
+	out := &bytes.Buffer{}
+	metricFamilies, _ := prometheus.DefaultGatherer.Gather()
+	for i := range metricFamilies {
+		expfmt.MetricFamilyToText(out, metricFamilies[i])
 
-	return body
+	}
+	return out.Bytes()
 }
 
 func (p *Prometheus) getPushGatewayURL() string {
