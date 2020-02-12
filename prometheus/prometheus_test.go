@@ -121,3 +121,14 @@ func TestMetricsPathIgnored(t *testing.T) {
 	})
 	unregister(p)
 }
+
+func TestMetricsPushGateway(t *testing.T) {
+	e := echo.New()
+	p := NewPrometheus("echo", nil)
+	p.Use(e)
+
+	result := p.getMetrics()
+
+	assert.Contains(t, string(result), fmt.Sprintf("%s_request_duration", p.Subsystem))
+	unregister(p)
+}
