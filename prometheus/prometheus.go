@@ -52,19 +52,22 @@ var reqDur = &Metric{
 	ID:          "reqDur",
 	Name:        "request_duration_seconds",
 	Description: "The HTTP request latencies in seconds.",
-	Type:        "summary"}
+	Args:        []string{"code", "method", "url"},
+	Type:        "histogram_vec"}
 
 var resSz = &Metric{
 	ID:          "resSz",
 	Name:        "response_size_bytes",
 	Description: "The HTTP response sizes in bytes.",
-	Type:        "summary"}
+	Args:        []string{"code", "method", "url"},
+	Type:        "histogram_vec"}
 
 var reqSz = &Metric{
 	ID:          "reqSz",
 	Name:        "request_size_bytes",
 	Description: "The HTTP request sizes in bytes.",
-	Type:        "summary"}
+	Args:        []string{"code", "method", "url"},
+	Type:        "histogram_vec"}
 
 var standardMetrics = []*Metric{
 	reqCnt,
@@ -108,7 +111,7 @@ type Metric struct {
 // Prometheus contains the metrics gathered by the instance and its path
 type Prometheus struct {
 	reqCnt               *prometheus.CounterVec
-	reqDur, reqSz, resSz prometheus.Summary
+	reqDur, reqSz, resSz *prometheus.HistogramVec
 	router               *echo.Echo
 	listenAddress        string
 	Ppg                  PushGateway
@@ -344,11 +347,11 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 		case reqCnt:
 			p.reqCnt = metric.(*prometheus.CounterVec)
 		case reqDur:
-			p.reqDur = metric.(prometheus.Summary)
+			p.reqDur = metric.(*prometheus.HistogramVec)
 		case resSz:
-			p.resSz = metric.(prometheus.Summary)
+			p.resSz = metric.(*prometheus.HistogramVec)
 		case reqSz:
-			p.reqSz = metric.(prometheus.Summary)
+			p.reqSz = metric.(*prometheus.HistogramVec)
 		}
 		metricDef.MetricCollector = metric
 	}
@@ -378,12 +381,12 @@ func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 
 		status := strconv.Itoa(c.Response().Status)
+		url := p.RequestCounterURLLabelMappingFunc(c)
 
 		elapsed := float64(time.Since(start)) / float64(time.Second)
 		resSz := float64(c.Response().Size)
 
-		p.reqDur.Observe(elapsed)
-		url := p.RequestCounterURLLabelMappingFunc(c)
+		p.reqDur.WithLabelValues(status, c.Request().Method, url).Observe(elapsed)
 
 		if len(p.URLLabelFromContext) > 0 {
 			u := c.Get(p.URLLabelFromContext)
@@ -394,8 +397,8 @@ func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 
 		p.reqCnt.WithLabelValues(status, c.Request().Method, c.Request().Host, url).Inc()
-		p.reqSz.Observe(float64(reqSz))
-		p.resSz.Observe(resSz)
+		p.reqSz.WithLabelValues(status, c.Request().Method, url).Observe(float64(reqSz))
+		p.resSz.WithLabelValues(status, c.Request().Method, url).Observe(resSz)
 
 		return
 	}
