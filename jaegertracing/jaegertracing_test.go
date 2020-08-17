@@ -1,6 +1,7 @@
 package jaegertracing
 
 import (
+	"bytes"
 	"errors"
 	"net/http"
 	"net/http/httptest"
@@ -142,6 +143,32 @@ func TestTraceWithConfig(t *testing.T) {
 	assert.Equal(t, true, tracer.currentSpan().isFinished())
 	assert.Equal(t, "/trace", tracer.currentSpan().getTag("http.url"))
 	assert.Equal(t, "EchoTracer", tracer.currentSpan().getTag("component"))
+	assert.Equal(t, true, tracer.hasStartSpanWithOption)
+
+}
+
+func TestTraceWithConfigOfBodyDump(t *testing.T) {
+	tracer := createMockTracer()
+
+	e := echo.New()
+	e.Use(TraceWithConfig(TraceConfig{
+		Tracer:        tracer,
+		componentName: "EchoTracer",
+		IsBodyDump:    true,
+	}))
+	e.POST("/trace", func(c echo.Context) error {
+		return c.String(200, "Hi")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/trace", bytes.NewBufferString(`{"name": "Lorem"}`))
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, true, tracer.currentSpan().isFinished())
+	assert.Equal(t, "EchoTracer", tracer.currentSpan().getTag("component"))
+	assert.Equal(t, "/trace", tracer.currentSpan().getTag("http.url"))
+	assert.Equal(t, `{"name": "Lorem"}`, tracer.currentSpan().getTag("http.req.body"))
+	assert.Equal(t, `Hi`, tracer.currentSpan().getTag("http.resp.body"))
 	assert.Equal(t, true, tracer.hasStartSpanWithOption)
 
 }
