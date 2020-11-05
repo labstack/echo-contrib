@@ -21,8 +21,10 @@ func main() {
 package jaegertracing
 
 import (
+	"bytes"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -48,6 +50,9 @@ type (
 
 		// componentName used for describing the tracing component name
 		componentName string
+
+		// add req body & resp body to tracing tags
+		IsBodyDump bool
 	}
 )
 
@@ -56,6 +61,7 @@ var (
 	DefaultTraceConfig = TraceConfig{
 		Skipper:       middleware.DefaultSkipper,
 		componentName: defaultComponentName,
+		IsBodyDump:    false,
 	}
 )
 
@@ -134,6 +140,24 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 			ext.HTTPUrl.Set(sp, req.URL.String())
 			ext.Component.Set(sp, config.componentName)
 
+			// Dump request & response body
+			resBody := new(bytes.Buffer)
+			if config.IsBodyDump {
+				// request
+				reqBody := []byte{}
+				if c.Request().Body != nil { // Read
+					reqBody, _ = ioutil.ReadAll(c.Request().Body)
+					sp.SetTag("http.req.body", string(reqBody))
+				}
+
+				req.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody)) // Reset
+
+				// response
+				mw := io.MultiWriter(c.Response().Writer, resBody)
+				writer := &bodyDumpResponseWriter{Writer: mw, ResponseWriter: c.Response().Writer}
+				c.Response().Writer = writer
+			}
+
 			req = req.WithContext(opentracing.ContextWithSpan(req.Context(), sp))
 			c.SetRequest(req)
 
@@ -144,6 +168,12 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 				if status >= http.StatusInternalServerError || !committed {
 					ext.Error.Set(sp, true)
 				}
+
+				// Dump response body
+				if config.IsBodyDump {
+					sp.SetTag("http.resp.body", string(resBody.Bytes()))
+				}
+
 				sp.Finish()
 			}()
 			return next(c)
