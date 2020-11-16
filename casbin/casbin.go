@@ -61,6 +61,9 @@ type (
 		// Enforcer CasbinAuth main rule.
 		// Required.
 		Enforcer *casbin.Enforcer
+
+		// Method to get the username - defaults to using basic auth
+		UserGetter func(c echo.Context) (string, error)
 	}
 )
 
@@ -68,6 +71,10 @@ var (
 	// DefaultConfig is the default CasbinAuth middleware config.
 	DefaultConfig = Config{
 		Skipper: middleware.DefaultSkipper,
+		UserGetter: func(c echo.Context) (string, error) {
+			username, _, _ := c.Request().BasicAuth()
+			return username, nil
+		},
 	}
 )
 
@@ -109,7 +116,7 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 // GetUserName gets the user name from the request.
 // Currently, only HTTP basic authentication is supported
 func (a *Config) GetUserName(c echo.Context) string {
-	username, _, _ := c.Request().BasicAuth()
+	username, _ := a.UserGetter(c)
 	return username
 }
 
