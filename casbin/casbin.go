@@ -114,16 +114,19 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 }
 
 // GetUserName gets the user name from the request.
-// Currently, only HTTP basic authentication is supported
-func (a *Config) GetUserName(c echo.Context) string {
-	username, _ := a.UserGetter(c)
-	return username
+// It calls the UserGetter field of the Config struct that allows the caller to customize user identification.
+func (a *Config) GetUserName(c echo.Context) (string, error) {
+	username, err := a.UserGetter(c)
+	return username, err
 }
 
 // CheckPermission checks the user/method/path combination from the request.
 // Returns true (permission granted) or false (permission forbidden)
 func (a *Config) CheckPermission(c echo.Context) (bool, error) {
-	user := a.GetUserName(c)
+	user, err := a.GetUserName(c)
+	if err != nil {
+		return false, err
+	}
 	method := c.Request().Method
 	path := c.Request().URL.Path
 	return a.Enforcer.Enforce(user, path, method)
