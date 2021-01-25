@@ -125,7 +125,8 @@ func (a *Config) GetUserName(c echo.Context) (string, error) {
 func (a *Config) CheckPermission(c echo.Context) (bool, error) {
 	user, err := a.GetUserName(c)
 	if err != nil {
-		return false, err
+		// Fail safe and do not propagate
+		return false, nil
 	}
 	method := c.Request().Method
 	path := c.Request().URL.Path
