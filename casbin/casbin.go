@@ -61,6 +61,9 @@ type (
 		// Enforcer CasbinAuth main rule.
 		// Required.
 		Enforcer *casbin.Enforcer
+
+		// Method to get the username - defaults to using basic auth
+		UserGetter func(c echo.Context) (string, error)
 	}
 )
 
@@ -68,6 +71,10 @@ var (
 	// DefaultConfig is the default CasbinAuth middleware config.
 	DefaultConfig = Config{
 		Skipper: middleware.DefaultSkipper,
+		UserGetter: func(c echo.Context) (string, error) {
+			username, _, _ := c.Request().BasicAuth()
+			return username, nil
+		},
 	}
 )
 
@@ -107,16 +114,20 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 }
 
 // GetUserName gets the user name from the request.
-// Currently, only HTTP basic authentication is supported
-func (a *Config) GetUserName(c echo.Context) string {
-	username, _, _ := c.Request().BasicAuth()
-	return username
+// It calls the UserGetter field of the Config struct that allows the caller to customize user identification.
+func (a *Config) GetUserName(c echo.Context) (string, error) {
+	username, err := a.UserGetter(c)
+	return username, err
 }
 
 // CheckPermission checks the user/method/path combination from the request.
 // Returns true (permission granted) or false (permission forbidden)
 func (a *Config) CheckPermission(c echo.Context) (bool, error) {
-	user := a.GetUserName(c)
+	user, err := a.GetUserName(c)
+	if err != nil {
+		// Fail safe and do not propagate
+		return false, nil
+	}
 	method := c.Request().Method
 	path := c.Request().URL.Path
 	return a.Enforcer.Enforce(user, path, method)
