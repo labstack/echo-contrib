@@ -164,23 +164,18 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 
 			var err error
 			defer func() {
-				var status int
-
 				if err != nil {
 					c.Error(err)
 
 					var httpError *echo.HTTPError
 					if errors.As(err, &httpError) {
-						status = httpError.Code
 						sp.SetTag("error.message", httpError.Message)
 					} else {
-						status = c.Response().Status
 						sp.SetTag("error.message", err.Error())
 					}
-				} else {
-					status = c.Response().Status
 				}
 
+				status := c.Response().Status
 				committed := c.Response().Committed
 				ext.HTTPStatusCode.Set(sp, uint16(status))
 				if status >= http.StatusInternalServerError || !committed {
