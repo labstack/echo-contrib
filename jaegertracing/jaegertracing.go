@@ -48,8 +48,8 @@ type (
 		// OpenTracing Tracer instance which should be got before
 		Tracer opentracing.Tracer
 
-		// componentName used for describing the tracing component name
-		componentName string
+		// ComponentName used for describing the tracing component name
+		ComponentName string
 
 		// add req body & resp body to tracing tags
 		IsBodyDump bool
@@ -60,7 +60,7 @@ var (
 	// DefaultTraceConfig is the default Trace middleware config.
 	DefaultTraceConfig = TraceConfig{
 		Skipper:       middleware.DefaultSkipper,
-		componentName: defaultComponentName,
+		ComponentName: defaultComponentName,
 		IsBodyDump:    false,
 	}
 )
@@ -102,7 +102,7 @@ func New(e *echo.Echo, skipper middleware.Skipper) io.Closer {
 func Trace(tracer opentracing.Tracer) echo.MiddlewareFunc {
 	c := DefaultTraceConfig
 	c.Tracer = tracer
-	c.componentName = defaultComponentName
+	c.ComponentName = defaultComponentName
 	return TraceWithConfig(c)
 }
 
@@ -115,8 +115,8 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 	if config.Skipper == nil {
 		config.Skipper = middleware.DefaultSkipper
 	}
-	if config.componentName == "" {
-		config.componentName = defaultComponentName
+	if config.ComponentName == "" {
+		config.ComponentName = defaultComponentName
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -138,7 +138,7 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 
 			ext.HTTPMethod.Set(sp, req.Method)
 			ext.HTTPUrl.Set(sp, req.URL.String())
-			ext.Component.Set(sp, config.componentName)
+			ext.Component.Set(sp, config.ComponentName)
 
 			// Dump request & response body
 			resBody := new(bytes.Buffer)

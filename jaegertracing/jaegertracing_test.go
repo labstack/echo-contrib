@@ -134,7 +134,7 @@ func TestTraceWithConfig(t *testing.T) {
 	e := echo.New()
 	e.Use(TraceWithConfig(TraceConfig{
 		Tracer:        tracer,
-		componentName: "EchoTracer",
+		ComponentName: "EchoTracer",
 	}))
 	req := httptest.NewRequest(http.MethodGet, "/trace", nil)
 	rec := httptest.NewRecorder()
@@ -153,7 +153,7 @@ func TestTraceWithConfigOfBodyDump(t *testing.T) {
 	e := echo.New()
 	e.Use(TraceWithConfig(TraceConfig{
 		Tracer:        tracer,
-		componentName: "EchoTracer",
+		ComponentName: "EchoTracer",
 		IsBodyDump:    true,
 	}))
 	e.POST("/trace", func(c echo.Context) error {
