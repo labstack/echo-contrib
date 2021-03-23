@@ -161,7 +161,12 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 			req = req.WithContext(opentracing.ContextWithSpan(req.Context(), sp))
 			c.SetRequest(req)
 
+			var err error
 			defer func() {
+				if err != nil {
+					c.Error(err)
+				}
+
 				status := c.Response().Status
 				committed := c.Response().Committed
 				ext.HTTPStatusCode.Set(sp, uint16(status))
@@ -176,7 +181,8 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 
 				sp.Finish()
 			}()
-			return next(c)
+			err = next(c)
+			return err
 		}
 	}
 }
