@@ -124,7 +124,7 @@ func TestTraceWithDefaultConfig(t *testing.T) {
 	assert.Equal(t, "GET", tracer.currentSpan().getTag("http.method"))
 	assert.Equal(t, "/", tracer.currentSpan().getTag("http.url"))
 	assert.Equal(t, defaultComponentName, tracer.currentSpan().getTag("component"))
-	assert.Equal(t, uint16(200), tracer.currentSpan().getTag("http.status_code"))
+	assert.Equal(t, uint16(404), tracer.currentSpan().getTag("http.status_code"))
 	assert.Equal(t, true, tracer.currentSpan().getTag("error"))
 }
 
@@ -169,6 +169,7 @@ func TestTraceWithConfigOfBodyDump(t *testing.T) {
 	assert.Equal(t, "/trace", tracer.currentSpan().getTag("http.url"))
 	assert.Equal(t, `{"name": "Lorem"}`, tracer.currentSpan().getTag("http.req.body"))
 	assert.Equal(t, `Hi`, tracer.currentSpan().getTag("http.resp.body"))
+	assert.Equal(t, uint16(200), tracer.currentSpan().getTag("http.status_code"))
 	assert.Equal(t, true, tracer.hasStartSpanWithOption)
 
 }
