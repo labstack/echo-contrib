@@ -3,6 +3,7 @@ package jaegertracing
 import (
 	"bytes"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -117,15 +118,62 @@ func TestTraceWithDefaultConfig(t *testing.T) {
 
 	e := echo.New()
 	e.Use(Trace(tracer))
-	req := httptest.NewRequest(http.MethodGet, "/", nil)
-	rec := httptest.NewRecorder()
-	e.ServeHTTP(rec, req)
 
-	assert.Equal(t, "GET", tracer.currentSpan().getTag("http.method"))
-	assert.Equal(t, "/", tracer.currentSpan().getTag("http.url"))
-	assert.Equal(t, defaultComponentName, tracer.currentSpan().getTag("component"))
-	assert.Equal(t, uint16(404), tracer.currentSpan().getTag("http.status_code"))
-	assert.NotEqual(t, true, tracer.currentSpan().getTag("error"))
+	e.GET("/hello", func(c echo.Context) error {
+		return c.String(http.StatusOK, "world")
+	})
+
+	e.GET("/giveme400", func(c echo.Context) error {
+		return echo.NewHTTPError(http.StatusBadRequest, "baaaad request")
+	})
+
+	e.GET("/givemeerror", func(c echo.Context) error {
+		return fmt.Errorf("internal stuff went wrong")
+	})
+
+	t.Run("successful call", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/hello", nil)
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+
+		assert.Equal(t, "GET", tracer.currentSpan().getTag("http.method"))
+		assert.Equal(t, "/hello", tracer.currentSpan().getTag("http.url"))
+		assert.Equal(t, defaultComponentName, tracer.currentSpan().getTag("component"))
+		assert.Equal(t, uint16(200), tracer.currentSpan().getTag("http.status_code"))
+		assert.NotEqual(t, true, tracer.currentSpan().getTag("error"))
+	})
+
+	t.Run("error from echo", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/idontexist", nil)
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+
+		assert.Equal(t, "GET", tracer.currentSpan().getTag("http.method"))
+		assert.Equal(t, "/idontexist", tracer.currentSpan().getTag("http.url"))
+		assert.Equal(t, defaultComponentName, tracer.currentSpan().getTag("component"))
+		assert.Equal(t, uint16(404), tracer.currentSpan().getTag("http.status_code"))
+		assert.Equal(t, nil, tracer.currentSpan().getTag("error"))
+	})
+
+	t.Run("custom http error", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/giveme400", nil)
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+
+		assert.Equal(t, uint16(400), tracer.currentSpan().getTag("http.status_code"))
+		assert.Equal(t, nil, tracer.currentSpan().getTag("error"))
+		assert.Equal(t, "baaaad request", tracer.currentSpan().getTag("error.message"))
+	})
+
+	t.Run("unknown error", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/givemeerror", nil)
+		rec := httptest.NewRecorder()
+		e.ServeHTTP(rec, req)
+
+		assert.Equal(t, uint16(500), tracer.currentSpan().getTag("http.status_code"))
+		assert.Equal(t, true, tracer.currentSpan().getTag("error"))
+		assert.Equal(t, "internal stuff went wrong", tracer.currentSpan().getTag("error.message"))
+	})
 }
 
 func TestTraceWithConfig(t *testing.T) {
@@ -170,7 +218,7 @@ func TestTraceWithConfigOfBodyDump(t *testing.T) {
 	assert.Equal(t, `{"name": "Lorem"}`, tracer.currentSpan().getTag("http.req.body"))
 	assert.Equal(t, `Hi`, tracer.currentSpan().getTag("http.resp.body"))
 	assert.Equal(t, uint16(200), tracer.currentSpan().getTag("http.status_code"))
-	assert.NotEqual(t, true, tracer.currentSpan().getTag("error"))
+	assert.Equal(t, nil, tracer.currentSpan().getTag("error"))
 	assert.Equal(t, true, tracer.hasStartSpanWithOption)
 
 }
