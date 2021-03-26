@@ -15,3 +15,4 @@ session | Session middleware backed by [gorilla/sessions](https://github.com/gor
 jaegertracing | Jaeger tracer middleware | [carlosedp](https://github.com/carlosedp)
 prometheus | Prometheus metrics | [carlosedp](https://github.com/carlosedp)
 pprof      | pprof middlware | [arun0009](https://github.com/arun0009)
+zipkin | [Zipkin](https://github.com/openzipkin/zipkin-go) middleware | [arun0009](https://github.com/arun0009)
