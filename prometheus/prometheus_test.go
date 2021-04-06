@@ -127,8 +127,10 @@ func TestMetricsPushGateway(t *testing.T) {
 	p := NewPrometheus("echo", nil)
 	p.Use(e)
 
-	result := p.getMetrics()
-
-	assert.Contains(t, string(result), fmt.Sprintf("%s_request_duration", p.Subsystem))
+	g := gofight.New()
+	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+		assert.Equal(t, http.StatusOK, r.Code)
+		assert.NotContains(t, r.Body.String(), fmt.Sprintf("%s_request_duration", p.Subsystem))
+	})
 	unregister(p)
 }
