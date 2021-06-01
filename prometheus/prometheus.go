@@ -77,7 +77,7 @@ var standardMetrics = []*Metric{
 }
 
 /*
-RequestCounterURLLabelMappingFunc is a function which can be supplied to the middleware to control
+RequestCounterLabelMappingFunc is a function which can be supplied to the middleware to control
 the cardinality of the request counter's "url" label, which might be required in some contexts.
 For instance, if for a "/customer/:name" route you don't want to generate a time series for every
 possible customer name, you could use this function:
@@ -94,8 +94,9 @@ func(c echo.Context) string {
 }
 
 which would map "/customer/alice" and "/customer/bob" to their template "/customer/:name".
+It can also be applied for the "Host" label
 */
-type RequestCounterURLLabelMappingFunc func(c echo.Context) string
+type RequestCounterLabelMappingFunc func(c echo.Context) string
 
 // Metric is a definition for the name, description, type, ID, and
 // prometheus.Collector type (i.e. CounterVec, Summary, etc) of each metric
@@ -121,7 +122,8 @@ type Prometheus struct {
 	Subsystem   string
 	Skipper     middleware.Skipper
 
-	RequestCounterURLLabelMappingFunc RequestCounterURLLabelMappingFunc
+	RequestCounterURLLabelMappingFunc  RequestCounterLabelMappingFunc
+	RequestCounterHostLabelMappingFunc RequestCounterLabelMappingFunc
 
 	// Context string to use as a prometheus URL label
 	URLLabelFromContext string
@@ -164,6 +166,9 @@ func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsLi
 		Skipper:     skipper,
 		RequestCounterURLLabelMappingFunc: func(c echo.Context) string {
 			return c.Path() // i.e. by default do nothing, i.e. return URL as is
+		},
+		RequestCounterHostLabelMappingFunc: func(c echo.Context) string {
+			return c.Request().Host
 		},
 	}
 
@@ -390,7 +395,7 @@ func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
 			url = u.(string)
 		}
 
-		p.reqCnt.WithLabelValues(status, c.Request().Method, c.Request().Host, url).Inc()
+		p.reqCnt.WithLabelValues(status, c.Request().Method, p.RequestCounterHostLabelMappingFunc(c), url).Inc()
 		p.reqSz.WithLabelValues(status, c.Request().Method, url).Observe(float64(reqSz))
 		p.resSz.WithLabelValues(status, c.Request().Method, url).Observe(resSz)
 
