@@ -9,13 +9,13 @@ tag:
 check: lint vet race ## Check project
 
 init:
-	@go get -u golang.org/x/lint/golint
+	@go get -u honnef.co/go/tools/cmd/staticcheck@latest
 
 format: ## Format the source code
 	@find ./ -type f -name "*.go" -exec gofmt -w {} \;
 
 lint: ## Lint the files
-	@golint -set_exit_status ${PKG_LIST}
+	@staticcheck
 
 vet: ## Vet the files
 	@go vet ${PKG_LIST}
