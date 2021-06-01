@@ -134,3 +134,37 @@ func TestMetricsPushGateway(t *testing.T) {
 	})
 	unregister(p)
 }
+
+func TestMetricsForErrors(t *testing.T) {
+	e := echo.New()
+	p := NewPrometheus("echo", nil)
+	p.Use(e)
+
+	e.GET("/handler_for_ok", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, "OK")
+	})
+	e.GET("/handler_for_nok", func(c echo.Context) error {
+		return c.JSON(http.StatusConflict, "NOK")
+	})
+	e.GET("/handler_for_error", func(c echo.Context) error {
+		return echo.NewHTTPError(http.StatusBadGateway, "BAD")
+	})
+
+	g := gofight.New()
+	g.GET("/handler_for_ok").Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusOK, r.Code) })
+
+	g.GET("/handler_for_nok").Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusConflict, r.Code) })
+	g.GET("/handler_for_nok").Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusConflict, r.Code) })
+
+	g.GET("/handler_for_error").Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusBadGateway, r.Code) })
+
+	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+		assert.Equal(t, http.StatusOK, r.Code)
+		body := r.Body.String()
+		assert.Contains(t, body, fmt.Sprintf("%s_requests_total", p.Subsystem))
+		assert.Contains(t, body, `echo_requests_total{code="200",host="",method="GET",url="/handler_for_ok"} 1`)
+		assert.Contains(t, body, `echo_requests_total{code="409",host="",method="GET",url="/handler_for_nok"} 2`)
+		assert.Contains(t, body, `echo_requests_total{code="502",host="",method="GET",url="/handler_for_error"} 1`)
+	})
+	unregister(p)
+}

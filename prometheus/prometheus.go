@@ -22,6 +22,7 @@ package prometheus
 
 import (
 	"bytes"
+	"errors"
 	"net/http"
 	"os"
 	"strconv"
@@ -364,7 +365,7 @@ func (p *Prometheus) Use(e *echo.Echo) {
 
 // HandlerFunc defines handler function for middleware
 func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) (err error) {
+	return func(c echo.Context) error {
 		if c.Path() == p.MetricsPath {
 			return next(c)
 		}
@@ -375,18 +376,22 @@ func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
 		start := time.Now()
 		reqSz := computeApproximateRequestSize(c.Request())
 
-		if err = next(c); err != nil {
-			c.Error(err)
+		err := next(c)
+
+		status := c.Response().Status
+		if err != nil {
+			var httpError *echo.HTTPError
+			if errors.As(err, &httpError) {
+				status = httpError.Code
+			}
+			if status == 0 || status == http.StatusOK {
+				status = http.StatusInternalServerError
+			}
 		}
 
-		status := strconv.Itoa(c.Response().Status)
-		url := p.RequestCounterURLLabelMappingFunc(c)
-
 		elapsed := float64(time.Since(start)) / float64(time.Second)
-		resSz := float64(c.Response().Size)
 
-		p.reqDur.WithLabelValues(status, c.Request().Method, url).Observe(elapsed)
-
+		url := p.RequestCounterURLLabelMappingFunc(c)
 		if len(p.URLLabelFromContext) > 0 {
 			u := c.Get(p.URLLabelFromContext)
 			if u == nil {
@@ -395,11 +400,15 @@ func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
 			url = u.(string)
 		}
 
-		p.reqCnt.WithLabelValues(status, c.Request().Method, p.RequestCounterHostLabelMappingFunc(c), url).Inc()
-		p.reqSz.WithLabelValues(status, c.Request().Method, url).Observe(float64(reqSz))
-		p.resSz.WithLabelValues(status, c.Request().Method, url).Observe(resSz)
+		statusStr := strconv.Itoa(status)
+		p.reqDur.WithLabelValues(statusStr, c.Request().Method, url).Observe(elapsed)
+		p.reqCnt.WithLabelValues(statusStr, c.Request().Method, p.RequestCounterHostLabelMappingFunc(c), url).Inc()
+		p.reqSz.WithLabelValues(statusStr, c.Request().Method, url).Observe(float64(reqSz))
 
-		return
+		resSz := float64(c.Response().Size)
+		p.resSz.WithLabelValues(statusStr, c.Request().Method, url).Observe(resSz)
+
+		return err
 	}
 }
 
