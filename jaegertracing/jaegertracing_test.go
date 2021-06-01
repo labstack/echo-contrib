@@ -152,7 +152,7 @@ func TestTraceWithDefaultConfig(t *testing.T) {
 		assert.Equal(t, "/idontexist", tracer.currentSpan().getTag("http.url"))
 		assert.Equal(t, defaultComponentName, tracer.currentSpan().getTag("component"))
 		assert.Equal(t, uint16(404), tracer.currentSpan().getTag("http.status_code"))
-		assert.Equal(t, nil, tracer.currentSpan().getTag("error"))
+		assert.Equal(t, true, tracer.currentSpan().getTag("error"))
 	})
 
 	t.Run("custom http error", func(t *testing.T) {
@@ -161,7 +161,7 @@ func TestTraceWithDefaultConfig(t *testing.T) {
 		e.ServeHTTP(rec, req)
 
 		assert.Equal(t, uint16(400), tracer.currentSpan().getTag("http.status_code"))
-		assert.Equal(t, nil, tracer.currentSpan().getTag("error"))
+		assert.Equal(t, true, tracer.currentSpan().getTag("error"))
 		assert.Equal(t, "baaaad request", tracer.currentSpan().getTag("error.message"))
 	})
 

@@ -164,19 +164,28 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 
 			var err error
 			defer func() {
-				if err != nil {
-					c.Error(err)
+				committed := c.Response().Committed
+				status := c.Response().Status
 
+				if err != nil {
 					var httpError *echo.HTTPError
 					if errors.As(err, &httpError) {
+						if httpError.Code != 0 {
+							status = httpError.Code
+						}
 						sp.SetTag("error.message", httpError.Message)
 					} else {
 						sp.SetTag("error.message", err.Error())
 					}
+					if status == http.StatusOK {
+						// this is ugly workaround for cases when httpError.code == 0 or error was not httpError and status
+						// in request was 200 (OK). In these cases replace status with something that represents an error
+						// it could be that error handlers or middlewares up in chain will output different status code to
+						// client. but at least we send something better than 200 to jaeger
+						status = http.StatusInternalServerError
+					}
 				}
 
-				status := c.Response().Status
-				committed := c.Response().Committed
 				ext.HTTPStatusCode.Set(sp, uint16(status))
 				if status >= http.StatusInternalServerError || !committed {
 					ext.Error.Set(sp, true)
