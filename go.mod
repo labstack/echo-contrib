@@ -8,7 +8,7 @@ require (
 	github.com/casbin/casbin/v2 v2.25.5
 	github.com/gorilla/context v1.1.1
 	github.com/gorilla/sessions v1.2.1
-	github.com/labstack/echo/v4 v4.2.1
+	github.com/labstack/echo/v4 v4.3.0
 	github.com/labstack/gommon v0.3.0
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/openzipkin/zipkin-go v0.2.5
