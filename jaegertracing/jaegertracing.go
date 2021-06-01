@@ -22,6 +22,7 @@ package jaegertracing
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -48,8 +49,8 @@ type (
 		// OpenTracing Tracer instance which should be got before
 		Tracer opentracing.Tracer
 
-		// componentName used for describing the tracing component name
-		componentName string
+		// ComponentName used for describing the tracing component name
+		ComponentName string
 
 		// add req body & resp body to tracing tags
 		IsBodyDump bool
@@ -60,7 +61,7 @@ var (
 	// DefaultTraceConfig is the default Trace middleware config.
 	DefaultTraceConfig = TraceConfig{
 		Skipper:       middleware.DefaultSkipper,
-		componentName: defaultComponentName,
+		ComponentName: defaultComponentName,
 		IsBodyDump:    false,
 	}
 )
@@ -102,7 +103,7 @@ func New(e *echo.Echo, skipper middleware.Skipper) io.Closer {
 func Trace(tracer opentracing.Tracer) echo.MiddlewareFunc {
 	c := DefaultTraceConfig
 	c.Tracer = tracer
-	c.componentName = defaultComponentName
+	c.ComponentName = defaultComponentName
 	return TraceWithConfig(c)
 }
 
@@ -115,8 +116,8 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 	if config.Skipper == nil {
 		config.Skipper = middleware.DefaultSkipper
 	}
-	if config.componentName == "" {
-		config.componentName = defaultComponentName
+	if config.ComponentName == "" {
+		config.ComponentName = defaultComponentName
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -138,7 +139,7 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 
 			ext.HTTPMethod.Set(sp, req.Method)
 			ext.HTTPUrl.Set(sp, req.URL.String())
-			ext.Component.Set(sp, config.componentName)
+			ext.Component.Set(sp, config.ComponentName)
 
 			// Dump request & response body
 			resBody := new(bytes.Buffer)
@@ -161,9 +162,30 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 			req = req.WithContext(opentracing.ContextWithSpan(req.Context(), sp))
 			c.SetRequest(req)
 
+			var err error
 			defer func() {
-				status := c.Response().Status
 				committed := c.Response().Committed
+				status := c.Response().Status
+
+				if err != nil {
+					var httpError *echo.HTTPError
+					if errors.As(err, &httpError) {
+						if httpError.Code != 0 {
+							status = httpError.Code
+						}
+						sp.SetTag("error.message", httpError.Message)
+					} else {
+						sp.SetTag("error.message", err.Error())
+					}
+					if status == http.StatusOK {
+						// this is ugly workaround for cases when httpError.code == 0 or error was not httpError and status
+						// in request was 200 (OK). In these cases replace status with something that represents an error
+						// it could be that error handlers or middlewares up in chain will output different status code to
+						// client. but at least we send something better than 200 to jaeger
+						status = http.StatusInternalServerError
+					}
+				}
+
 				ext.HTTPStatusCode.Set(sp, uint16(status))
 				if status >= http.StatusInternalServerError || !committed {
 					ext.Error.Set(sp, true)
@@ -176,7 +198,8 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 
 				sp.Finish()
 			}()
-			return next(c)
+			err = next(c)
+			return err
 		}
 	}
 }
