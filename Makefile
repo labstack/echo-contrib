@@ -15,7 +15,7 @@ format: ## Format the source code
 	@find ./ -type f -name "*.go" -exec gofmt -w {} \;
 
 lint: ## Lint the files
-	@staticcheck
+	@staticcheck -tests=false ${PKG_LIST}
 
 vet: ## Vet the files
 	@go vet ${PKG_LIST}
