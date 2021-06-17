@@ -101,5 +101,6 @@ func (rw *responseWriter) Flush() {
 }
 
 func (rw *responseWriter) CloseNotify() <-chan bool {
+	//lint:ignore SA1019 we support it for backwards compatibility reasons
 	return rw.ResponseWriter.(http.CloseNotifier).CloseNotify()
 }

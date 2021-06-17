@@ -133,6 +133,7 @@ type Prometheus struct {
 // PushGateway contains the configuration for pushing to a Prometheus pushgateway (optional)
 type PushGateway struct {
 	// Push interval in seconds
+	//lint:ignore ST1011 renaming would be breaking change
 	PushIntervalSeconds time.Duration
 
 	// Push Gateway URL in format http://domain:port
@@ -156,9 +157,7 @@ func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsLi
 		metricsList = customMetricsList[0]
 	}
 
-	for _, metric := range standardMetrics {
-		metricsList = append(metricsList, metric)
-	}
+	metricsList = append(metricsList, standardMetrics...)
 
 	p := &Prometheus{
 		MetricsList: metricsList,
@@ -179,10 +178,10 @@ func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsLi
 }
 
 // SetPushGateway sends metrics to a remote pushgateway exposed on pushGatewayURL
-// every pushIntervalSeconds. Metrics are fetched from
-func (p *Prometheus) SetPushGateway(pushGatewayURL string, pushIntervalSeconds time.Duration) {
+// every pushInterval. Metrics are fetched from
+func (p *Prometheus) SetPushGateway(pushGatewayURL string, pushInterval time.Duration) {
 	p.Ppg.PushGatewayURL = pushGatewayURL
-	p.Ppg.PushIntervalSeconds = pushIntervalSeconds
+	p.Ppg.PushIntervalSeconds = pushInterval
 	p.startPushTicker()
 }
 
@@ -245,6 +244,10 @@ func (p *Prometheus) getPushGatewayURL() string {
 
 func (p *Prometheus) sendMetricsToPushGateway(metrics []byte) {
 	req, err := http.NewRequest("POST", p.getPushGatewayURL(), bytes.NewBuffer(metrics))
+	if err != nil {
+		log.Errorf("failed to create push gateway request: %v", err)
+		return
+	}
 	client := &http.Client{}
 	if _, err = client.Do(req); err != nil {
 		log.Errorf("Error sending to push gateway: %v", err)

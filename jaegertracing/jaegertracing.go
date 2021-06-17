@@ -193,7 +193,7 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 
 				// Dump response body
 				if config.IsBodyDump {
-					sp.SetTag("http.resp.body", string(resBody.Bytes()))
+					sp.SetTag("http.resp.body", resBody.String())
 				}
 
 				sp.Finish()
