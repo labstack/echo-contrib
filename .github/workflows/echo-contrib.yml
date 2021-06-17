@@ -44,7 +44,7 @@ jobs:
 
       - name: Run Tests
         run: |
-          staticcheck
+          staticcheck -tests=false ./...
           go test -race --coverprofile=coverage.coverprofile --covermode=atomic ./...
 
       - name: Upload coverage to Codecov
