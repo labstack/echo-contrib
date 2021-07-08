@@ -45,6 +45,7 @@ Advanced example:
 package casbin
 
 import (
+	"errors"
 	"net/http"
 
 	"github.com/casbin/casbin/v2"
@@ -60,7 +61,7 @@ type (
 
 		// Enforcer CasbinAuth main rule.
 		// Required.
-		Enforcer *casbin.Enforcer
+		Enforcer casbin.IEnforcer
 
 		// Method to get the username - defaults to using basic auth
 		UserGetter func(c echo.Context) (string, error)
@@ -82,7 +83,7 @@ var (
 //
 // For valid credentials it calls the next handler.
 // For missing or invalid credentials, it sends "401 - Unauthorized" response.
-func Middleware(ce *casbin.Enforcer) echo.MiddlewareFunc {
+func Middleware(ce casbin.IEnforcer) echo.MiddlewareFunc {
 	c := DefaultConfig
 	c.Enforcer = ce
 	return MiddlewareWithConfig(c)
@@ -130,5 +131,9 @@ func (a *Config) CheckPermission(c echo.Context) (bool, error) {
 	}
 	method := c.Request().Method
 	path := c.Request().URL.Path
-	return a.Enforcer.Enforce(user, path, method)
+	if a.Enforcer != nil {
+		return a.Enforcer.Enforce(user, path, method)
+	} else {
+		return false, errors.New("casbin Enforcer is not set")
+	}
 }

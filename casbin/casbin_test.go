@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/casbin/casbin/v2"
@@ -130,4 +131,39 @@ func TestUserGetterError(t *testing.T) {
 		return c.String(http.StatusOK, "test")
 	})
 	testRequest(t, h, "cathy", "/dataset1/item", "GET", 403)
+}
+
+func TestSyncedEnforcer(t *testing.T) {
+	ce, _ := casbin.NewSyncedEnforcer("auth_model.conf", "auth_policy.csv")
+	h := Middleware(ce)(func(c echo.Context) error {
+		return c.String(http.StatusOK, "test")
+	})
+
+	testRequest(t, h, "alice", "/dataset1/resource1", echo.GET, 200)
+	testRequest(t, h, "alice", "/dataset1/resource1", echo.POST, 200)
+	testRequest(t, h, "alice", "/dataset1/resource2", echo.GET, 200)
+	testRequest(t, h, "alice", "/dataset1/resource2", echo.POST, 403)
+}
+
+func TestEnforcerNil(t *testing.T) {
+	cnf := Config{
+		Skipper: middleware.DefaultSkipper,
+		UserGetter: func(c echo.Context) (string, error) {
+			return "not_cathy_at_all", nil
+		},
+	}
+	h := MiddlewareWithConfig(cnf)(func(c echo.Context) error {
+		return c.String(http.StatusOK, "test")
+	})
+
+	e := echo.New()
+	req := httptest.NewRequest("GET", "/dataset1/item", nil)
+	req.SetBasicAuth("cathy", "secret")
+	res := httptest.NewRecorder()
+	c := e.NewContext(req, res)
+
+	if err := h(c); err == nil ||
+		!strings.Contains(err.Error(), "casbin Enforcer is not set") {
+		t.Error("expected the handler to fail with missing casbin Enforcer")
+	}
 }
