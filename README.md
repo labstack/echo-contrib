@@ -16,3 +16,4 @@ jaegertracing | Jaeger tracer middleware | [carlosedp](https://github.com/carlos
 prometheus | Prometheus metrics | [carlosedp](https://github.com/carlosedp)
 pprof      | pprof middlware | [arun0009](https://github.com/arun0009)
 zipkin | [Zipkin](https://github.com/openzipkin/zipkin-go) middleware | [arun0009](https://github.com/arun0009)
+oidcdiscovery | OpenID Connect Discovery for JWT middleware | [simongottschlag](https://github.com/simongottschlag)
