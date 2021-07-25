@@ -30,17 +30,6 @@ type Options struct {
 	// Defaults to the `jwks_uri` from the response of DiscoveryUri
 	JwksUri string
 
-	// RequiredTokenType is used if only specific tokens should be allowed.
-	// Default is empty string `""` and means all token types are allowed.
-	// Use case could be to configure this if the TokenType (set in the header of the JWT)
-	// should be `JWT` or maybe even `JWT+AT` to diffirentiate between access tokens and
-	// id tokens. Not all providers support or use this.
-	RequiredTokenType string
-
-	// RequiredAudience is used to require a specific Audience `aud` in the claims.
-	// Default to empty string `""` and means all audiences are allowed.
-	RequiredAudience string
-
 	// JwksFetchTimeout sets the context timeout when downloading the jwks
 	// Defaults to 5 seconds
 	JwksFetchTimeout time.Duration
@@ -56,6 +45,17 @@ type Options struct {
 	// Please observe: If enabled, it will always load even though settings
 	// may be wrong / not working.
 	LazyLoadJwks bool
+
+	// RequiredTokenType is used if only specific tokens should be allowed.
+	// Default is empty string `""` and means all token types are allowed.
+	// Use case could be to configure this if the TokenType (set in the header of the JWT)
+	// should be `JWT` or maybe even `JWT+AT` to diffirentiate between access tokens and
+	// id tokens. Not all providers support or use this.
+	RequiredTokenType string
+
+	// RequiredAudience is used to require a specific Audience `aud` in the claims.
+	// Default to empty string `""` and means all audiences are allowed.
+	RequiredAudience string
 }
 
 // New returns an OpenID Connect (OIDC) discovery `ParseTokenFunc` to be used

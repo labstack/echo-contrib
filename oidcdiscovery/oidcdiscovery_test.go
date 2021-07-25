@@ -26,19 +26,7 @@ func TestHandler(t *testing.T) {
 	op := server.NewTesting(t)
 	defer op.Close(t)
 
-	handler := func(c echo.Context) error {
-		token, ok := c.Get("user").(jwt.Token)
-		if !ok {
-			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
-		}
-
-		claims, err := token.AsMap(c.Request().Context())
-		if err != nil {
-			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
-		}
-
-		return c.JSON(http.StatusOK, claims)
-	}
+	handler := testGetEchoHandler(t)
 
 	e := echo.New()
 	h := middleware.JWTWithConfig(middleware.JWTConfig{
@@ -72,19 +60,7 @@ func TestHandlerLazyLoad(t *testing.T) {
 	op := server.NewTesting(t)
 	defer op.Close(t)
 
-	handler := func(c echo.Context) error {
-		token, ok := c.Get("user").(jwt.Token)
-		if !ok {
-			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
-		}
-
-		claims, err := token.AsMap(c.Request().Context())
-		if err != nil {
-			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
-		}
-
-		return c.JSON(http.StatusOK, claims)
-	}
+	handler := testGetEchoHandler(t)
 
 	oidcDiscoveryHandler := newHandler(Options{
 		Issuer:            "http://foo.bar/baz",
@@ -114,6 +90,104 @@ func TestHandlerLazyLoad(t *testing.T) {
 	oidcDiscoveryHandler.discoveryUri = getDiscoveryUriFromIssuer(op.GetURL(t))
 
 	testHandlerWithAuthentication(t, token, h, e)
+}
+
+func TestHandlerRequirements(t *testing.T) {
+	op := server.NewTesting(t)
+	defer op.Close(t)
+
+	handler := testGetEchoHandler(t)
+
+	cases := []struct {
+		testDescription string
+		options         Options
+		succeeds        bool
+	}{
+		{
+			testDescription: "no requirements",
+			options: Options{
+				Issuer: op.GetURL(t),
+			},
+			succeeds: true,
+		},
+		{
+			testDescription: "required token type matches",
+			options: Options{
+				Issuer:            op.GetURL(t),
+				RequiredTokenType: "JWT+AT",
+			},
+			succeeds: true,
+		},
+		{
+			testDescription: "required token type doesn't match",
+			options: Options{
+				Issuer:            op.GetURL(t),
+				RequiredTokenType: "FOO",
+			},
+			succeeds: false,
+		},
+		{
+			testDescription: "required audience matches",
+			options: Options{
+				Issuer:           op.GetURL(t),
+				RequiredAudience: "test-client",
+			},
+			succeeds: true,
+		},
+		{
+			testDescription: "required audience doesn't match",
+			options: Options{
+				Issuer:           op.GetURL(t),
+				RequiredAudience: "foo",
+			},
+			succeeds: false,
+		},
+	}
+
+	for i, c := range cases {
+		t.Logf("Test iteration %d: %s", i, c.testDescription)
+
+		e := echo.New()
+		h := middleware.JWTWithConfig(middleware.JWTConfig{
+			ParseTokenFunc: New(c.options),
+		})(handler)
+
+		// Test without authentication
+		reqNoAuth := httptest.NewRequest(http.MethodGet, "/", nil)
+		recNoAuth := httptest.NewRecorder()
+		cNoAuth := e.NewContext(reqNoAuth, recNoAuth)
+
+		err := h(cNoAuth)
+		require.Error(t, err)
+
+		// Test with authentication
+		token := op.GetToken(t)
+
+		if c.succeeds {
+			testHandlerWithAuthentication(t, token, h, e)
+		} else {
+			testHandlerWithAuthenticationFailure(t, token, h, e)
+		}
+	}
+
+}
+
+func testGetEchoHandler(t *testing.T) func(c echo.Context) error {
+	t.Helper()
+
+	return func(c echo.Context) error {
+		token, ok := c.Get("user").(jwt.Token)
+		if !ok {
+			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+		}
+
+		claims, err := token.AsMap(c.Request().Context())
+		if err != nil {
+			return echo.NewHTTPError(http.StatusUnauthorized, "invalid token")
+		}
+
+		return c.JSON(http.StatusOK, claims)
+	}
 }
 
 func testHandlerWithAuthentication(t *testing.T, token *oauth2.Token, restrictedHandler echo.HandlerFunc, e *echo.Echo) {
