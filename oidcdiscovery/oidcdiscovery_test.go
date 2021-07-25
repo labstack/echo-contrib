@@ -56,6 +56,63 @@ func TestHandler(t *testing.T) {
 	testHandlerWithAuthentication(t, tokenWithRotatedKey, h, e)
 }
 
+func BenchmarkHandler(b *testing.B) {
+	op := server.NewTesting(b)
+	defer op.Close(b)
+
+	handler := testGetEchoHandler(b)
+
+	e := echo.New()
+	h := middleware.JWTWithConfig(middleware.JWTConfig{
+		ParseTokenFunc: New(Options{
+			Issuer: op.GetURL(b),
+		}),
+	})(handler)
+
+	var tokens []*oauth2.Token
+	for i := 0; i < b.N; i++ {
+		tokens = append(tokens, op.GetToken(b))
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		token := tokens[i]
+		testHandlerWithAuthentication(b, token, h, e)
+	}
+}
+
+func BenchmarkHandlerRequirements(b *testing.B) {
+	op := server.NewTesting(b)
+	defer op.Close(b)
+
+	handler := testGetEchoHandler(b)
+
+	e := echo.New()
+	h := middleware.JWTWithConfig(middleware.JWTConfig{
+		ParseTokenFunc: New(Options{
+			Issuer:            op.GetURL(b),
+			RequiredTokenType: "JWT+AT",
+			RequiredAudience:  "test-client",
+			RequiredClaims: map[string]interface{}{
+				"sub": "test",
+			},
+		}),
+	})(handler)
+
+	var tokens []*oauth2.Token
+	for i := 0; i < b.N; i++ {
+		tokens = append(tokens, op.GetToken(b))
+	}
+
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		token := tokens[i]
+		testHandlerWithAuthentication(b, token, h, e)
+	}
+}
+
 func TestHandlerLazyLoad(t *testing.T) {
 	op := server.NewTesting(t)
 	defer op.Close(t)
@@ -142,6 +199,26 @@ func TestHandlerRequirements(t *testing.T) {
 			},
 			succeeds: false,
 		},
+		{
+			testDescription: "required sub matches",
+			options: Options{
+				Issuer: op.GetURL(t),
+				RequiredClaims: map[string]interface{}{
+					"sub": "test",
+				},
+			},
+			succeeds: true,
+		},
+		{
+			testDescription: "required sub doesn't match",
+			options: Options{
+				Issuer: op.GetURL(t),
+				RequiredClaims: map[string]interface{}{
+					"sub": "foo",
+				},
+			},
+			succeeds: false,
+		},
 	}
 
 	for i, c := range cases {
@@ -152,15 +229,6 @@ func TestHandlerRequirements(t *testing.T) {
 			ParseTokenFunc: New(c.options),
 		})(handler)
 
-		// Test without authentication
-		reqNoAuth := httptest.NewRequest(http.MethodGet, "/", nil)
-		recNoAuth := httptest.NewRecorder()
-		cNoAuth := e.NewContext(reqNoAuth, recNoAuth)
-
-		err := h(cNoAuth)
-		require.Error(t, err)
-
-		// Test with authentication
 		token := op.GetToken(t)
 
 		if c.succeeds {
@@ -169,10 +237,9 @@ func TestHandlerRequirements(t *testing.T) {
 			testHandlerWithAuthenticationFailure(t, token, h, e)
 		}
 	}
-
 }
 
-func testGetEchoHandler(t *testing.T) func(c echo.Context) error {
+func testGetEchoHandler(t testing.TB) func(c echo.Context) error {
 	t.Helper()
 
 	return func(c echo.Context) error {
@@ -190,7 +257,7 @@ func testGetEchoHandler(t *testing.T) func(c echo.Context) error {
 	}
 }
 
-func testHandlerWithAuthentication(t *testing.T, token *oauth2.Token, restrictedHandler echo.HandlerFunc, e *echo.Echo) {
+func testHandlerWithAuthentication(t testing.TB, token *oauth2.Token, restrictedHandler echo.HandlerFunc, e *echo.Echo) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	token.Valid()
@@ -207,7 +274,7 @@ func testHandlerWithAuthentication(t *testing.T, token *oauth2.Token, restricted
 	require.Equal(t, http.StatusOK, res.StatusCode)
 }
 
-func testHandlerWithAuthenticationFailure(t *testing.T, token *oauth2.Token, restrictedHandler echo.HandlerFunc, e *echo.Echo) {
+func testHandlerWithAuthenticationFailure(t testing.TB, token *oauth2.Token, restrictedHandler echo.HandlerFunc, e *echo.Echo) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	token.Valid()
@@ -220,7 +287,7 @@ func testHandlerWithAuthenticationFailure(t *testing.T, token *oauth2.Token, res
 	require.Error(t, err)
 }
 
-func testHandlerWithIDTokenFailure(t *testing.T, token *oauth2.Token, restrictedHandler echo.HandlerFunc, e *echo.Echo) {
+func testHandlerWithIDTokenFailure(t testing.TB, token *oauth2.Token, restrictedHandler echo.HandlerFunc, e *echo.Echo) {
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 
 	idToken, ok := token.Extra("id_token").(string)
@@ -862,7 +929,164 @@ func TestGetAndValidateTokenFromString(t *testing.T) {
 	}
 }
 
-func testNewKey(t *testing.T) (jwk.Key, jwk.Key) {
+func TestIsRequiredClaimsValid(t *testing.T) {
+	cases := []struct {
+		testDescription string
+		requiredClaims  map[string]interface{}
+		tokenClaims     map[string]interface{}
+		expectedResult  bool
+	}{
+		{
+			testDescription: "both are nil",
+			requiredClaims:  nil,
+			tokenClaims:     nil,
+			expectedResult:  true,
+		},
+		{
+			testDescription: "both are empty",
+			requiredClaims:  map[string]interface{}{},
+			tokenClaims:     map[string]interface{}{},
+			expectedResult:  true,
+		},
+		{
+			testDescription: "required claims are nil",
+			requiredClaims:  nil,
+			tokenClaims: map[string]interface{}{
+				"foo": "bar",
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "required claims are empty",
+			requiredClaims:  map[string]interface{}{},
+			tokenClaims: map[string]interface{}{
+				"foo": "bar",
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "token claims are nil",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+			},
+			tokenClaims:    nil,
+			expectedResult: false,
+		},
+		{
+			testDescription: "token claims are empty",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+			},
+			tokenClaims:    map[string]interface{}{},
+			expectedResult: false,
+		},
+		{
+			testDescription: "matching with string",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": "bar",
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "matching with string and int",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "matching with string and int in different orders",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+			},
+			tokenClaims: map[string]interface{}{
+				"bar": 1337,
+				"foo": "bar",
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "matching with string, int and float",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": 13.37,
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": 13.37,
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "not matching with string, int and float",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": 13.37,
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": 12.27,
+			},
+			expectedResult: false,
+		},
+		{
+			testDescription: "matching slice",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": []string{"foo"},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": []string{"foo"},
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "not matching slice",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": []string{"foo"},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": []string{"bar"},
+			},
+			expectedResult: false,
+		},
+	}
+
+	for i, c := range cases {
+		t.Logf("Test iteration %d: %s", i, c.testDescription)
+
+		err := isRequiredClaimsValid(c.requiredClaims, c.tokenClaims)
+
+		if c.expectedResult {
+			require.NoError(t, err)
+
+		} else {
+			require.Error(t, err)
+		}
+	}
+}
+
+func testNewKey(t testing.TB) (jwk.Key, jwk.Key) {
 	ecdsaKey, err := ecdsa.GenerateKey(elliptic.P384(), rand.Reader)
 	require.NoError(t, err)
 

@@ -54,8 +54,14 @@ type Options struct {
 	RequiredTokenType string
 
 	// RequiredAudience is used to require a specific Audience `aud` in the claims.
-	// Default to empty string `""` and means all audiences are allowed.
+	// Defaults to empty string `""` and means all audiences are allowed.
 	RequiredAudience string
+
+	// RequiredClaims is used to require specific claims in the token
+	// Defaults to empty map (nil) and won't check for anything else
+	// Works with most default types and their slices, but with special cases
+	// the code may need to be updated.
+	RequiredClaims map[string]interface{}
 }
 
 // New returns an OpenID Connect (OIDC) discovery `ParseTokenFunc` to be used
@@ -71,10 +77,11 @@ type handler struct {
 	issuer            string
 	discoveryUri      string
 	jwksUri           string
-	requiredAudience  string
-	requiredTokenType string
 	jwksFetchTimeout  time.Duration
 	allowedTokenDrift time.Duration
+	requiredAudience  string
+	requiredTokenType string
+	requiredClaims    map[string]interface{}
 
 	keyHandler *keyHandler
 }
@@ -84,10 +91,11 @@ func newHandler(opts Options) *handler {
 		issuer:            opts.Issuer,
 		discoveryUri:      opts.DiscoveryUri,
 		jwksUri:           opts.JwksUri,
-		requiredTokenType: opts.RequiredTokenType,
-		requiredAudience:  opts.RequiredAudience,
 		jwksFetchTimeout:  opts.JwksFetchTimeout,
 		allowedTokenDrift: opts.AllowedTokenDrift,
+		requiredTokenType: opts.RequiredTokenType,
+		requiredAudience:  opts.RequiredAudience,
+		requiredClaims:    opts.RequiredClaims,
 	}
 
 	err := h.loadJwks()
@@ -176,6 +184,18 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 		return nil, fmt.Errorf("required audience %q was not found, received: %v", h.requiredAudience, token.Audience())
 	}
 
+	if h.requiredClaims != nil {
+		tokenClaims, err := token.AsMap(c.Request().Context())
+		if err != nil {
+			return nil, fmt.Errorf("unable to get token claims: %w", err)
+		}
+
+		err = isRequiredClaimsValid(h.requiredClaims, tokenClaims)
+		if err != nil {
+			return nil, fmt.Errorf("unable to validate required claims: %w", err)
+		}
+	}
+
 	return token, nil
 }
 
@@ -205,7 +225,7 @@ func (h *keyHandler) updateKeySet() error {
 	defer cancel()
 	keySet, err := jwk.Fetch(ctx, h.jwksURI)
 	if err != nil {
-		return fmt.Errorf("Unable to fetch keys from %q: %v", h.jwksURI, err)
+		return fmt.Errorf("unable to fetch keys from %q: %v", h.jwksURI, err)
 	}
 
 	h.Lock()
@@ -376,6 +396,34 @@ func isTokenTypeValid(requiredTokenType string, tokenString string) bool {
 	return true
 }
 
+func isRequiredClaimsValid(requiredClaims map[string]interface{}, tokenClaims map[string]interface{}) error {
+	for k, v := range requiredClaims {
+		tokenValue, ok := tokenClaims[k]
+		if !ok {
+			return fmt.Errorf("token does not have claim: %s", k)
+		}
+
+		if !isSameType(v, tokenValue) {
+			return fmt.Errorf("required claim %s is of type %T, token contains type: %T", k, v, tokenValue)
+		}
+
+		switch v.(type) {
+		case string, int, int8, int16, int32, int64, float32, float64, bool:
+			if v != tokenValue {
+				return fmt.Errorf("required claim %s should be %v, token contained: %v", k, v, tokenValue)
+			}
+		case []string, []int, []int8, []int16, []int32, []int64, []float32, []float64:
+			if !sliceContains(v, tokenValue) {
+				return fmt.Errorf("required claim %s (%T) contains the values '%v' but received: %v", k, v, v, tokenValue)
+			}
+		default:
+			return fmt.Errorf("required claim %s is of unknown type: %T", k, v)
+		}
+	}
+
+	return nil
+}
+
 func getAndValidateTokenFromString(tokenString string, key jwk.Key) (jwt.Token, error) {
 	keySet := getKeySetFromKey(key)
 
@@ -385,6 +433,10 @@ func getAndValidateTokenFromString(tokenString string, key jwk.Key) (jwt.Token, 
 	}
 
 	return token, nil
+}
+
+func isSameType(a, b interface{}) bool {
+	return fmt.Sprintf("%T", a) == fmt.Sprintf("%T", b)
 }
 
 func getKeySetFromKey(key jwk.Key) jwk.Set {
