@@ -50,6 +50,8 @@ func sliceContains(required interface{}, received interface{}) bool {
 				return false
 			}
 		}
+	default:
+		return false
 	}
 
 	return true
