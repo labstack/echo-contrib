@@ -59,8 +59,23 @@ type Options struct {
 
 	// RequiredClaims is used to require specific claims in the token
 	// Defaults to empty map (nil) and won't check for anything else
-	// Works with most default types and their slices, but with special cases
-	// the code may need to be updated.
+	// Works with primitive types, slices and maps.
+	// Please observe: slices and strings checks that the token contains it, but more is allowed.
+	// Required claim []string{"bar"} matches token []string{"foo", "bar", "baz"}
+	// Required claim map[string]string{{"foo": "bar"}} matches token map[string]string{{"a": "b"},{"foo": "bar"},{"c": "d"}}
+	//
+	// Example:
+	//
+	// ```go
+	// map[string]interface{}{
+	// 	"foo": "bar",
+	// 	"bar": 1337,
+	// 	"baz": []string{"bar"},
+	// 	"oof": []map[string]string{
+	// 		{"bar": "baz"},
+	// 	},
+	// },
+	// ```
 	RequiredClaims map[string]interface{}
 }
 

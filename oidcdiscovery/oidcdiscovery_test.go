@@ -1067,6 +1067,16 @@ func TestIsRequiredClaimsValid(t *testing.T) {
 			expectedResult: true,
 		},
 		{
+			testDescription: "matching slice with multiple values",
+			requiredClaims: map[string]interface{}{
+				"oof": []string{"foo", "bar"},
+			},
+			tokenClaims: map[string]interface{}{
+				"oof": []string{"foo", "bar", "baz"},
+			},
+			expectedResult: true,
+		},
+		{
 			testDescription: "required slice contains in token slice",
 			requiredClaims: map[string]interface{}{
 				"foo": "bar",
@@ -1095,7 +1105,7 @@ func TestIsRequiredClaimsValid(t *testing.T) {
 			expectedResult: false,
 		},
 		{
-			testDescription: "using non-implemented type",
+			testDescription: "matching map",
 			requiredClaims: map[string]interface{}{
 				"foo": map[string]string{
 					"foo": "bar",
@@ -1106,12 +1116,158 @@ func TestIsRequiredClaimsValid(t *testing.T) {
 					"foo": "bar",
 				},
 			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "matching map with multiple values",
+			requiredClaims: map[string]interface{}{
+				"foo": map[string]string{
+					"foo": "bar",
+					"bar": "foo",
+				},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": map[string]string{
+					"a":   "b",
+					"foo": "bar",
+					"bar": "foo",
+					"c":   "d",
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "matching map with multiple keys in token claims",
+			requiredClaims: map[string]interface{}{
+				"foo": map[string]string{
+					"foo": "bar",
+				},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": map[string]string{
+					"a":   "b",
+					"foo": "bar",
+					"c":   "d",
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "not matching map",
+			requiredClaims: map[string]interface{}{
+				"foo": map[string]string{
+					"foo": "bar",
+				},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": map[string]int{
+					"foo": 1337,
+				},
+			},
 			expectedResult: false,
+		},
+		{
+			testDescription: "matching map with string slice",
+			requiredClaims: map[string]interface{}{
+				"foo": map[string][]string{
+					"foo": {"bar"},
+				},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": map[string][]string{
+					"foo": {"foo", "bar", "baz"},
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "not matching map with string slice",
+			requiredClaims: map[string]interface{}{
+				"foo": map[string][]string{
+					"foo": {"foobar"},
+				},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": map[string][]string{
+					"foo": {"foo", "bar", "baz"},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			testDescription: "matching slice with map",
+			requiredClaims: map[string]interface{}{
+				"foo": []map[string]string{
+					{"bar": "baz"},
+				},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": []map[string]string{
+					{"bar": "baz"},
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "not matching slice with map",
+			requiredClaims: map[string]interface{}{
+				"foo": []map[string]string{
+					{"bar": "foobar"},
+				},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": []map[string]string{
+					{"bar": "baz"},
+				},
+			},
+			expectedResult: false,
+		},
+		{
+			testDescription: "matching primitive types, slice and map",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": []string{"foo"},
+				"oof": []map[string]string{
+					{"bar": "baz"},
+				},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": []string{"foo"},
+				"oof": []map[string]string{
+					{"bar": "baz"},
+				},
+			},
+			expectedResult: true,
+		},
+		{
+			testDescription: "matching primitive types, slice and map where token contains multiple values",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": []string{"bar"},
+				"oof": []map[string]string{
+					{"bar": "baz"},
+				},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": []string{"foo", "bar", "baz"},
+				"oof": []map[string]string{
+					{"a": "b"},
+					{"bar": "baz"},
+					{"c": "d"},
+				},
+			},
+			expectedResult: true,
 		},
 	}
 
-	for _, c := range cases {
-		// t.Logf("Test iteration %d: %s", i, c.testDescription)
+	for i, c := range cases {
+		t.Logf("Test iteration %d: %s", i, c.testDescription)
 
 		err := isRequiredClaimsValid(c.requiredClaims, c.tokenClaims)
 
@@ -1120,7 +1276,6 @@ func TestIsRequiredClaimsValid(t *testing.T) {
 
 		} else {
 			require.Error(t, err)
-			t.Logf("Received error: %v", err)
 		}
 	}
 }

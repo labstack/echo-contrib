@@ -52,6 +52,26 @@ func isCtyListValid(a cty.Value, b cty.Value) bool {
 	return true
 }
 
+func isCtyMapValid(a cty.Value, b cty.Value) bool {
+	mapA := a.AsValueMap()
+	mapB := b.AsValueMap()
+
+	for k, v := range mapA {
+		mapBValue, ok := mapB[k]
+		if !ok {
+			return false
+		}
+
+		err := isCtyValueValid(v, mapBValue)
+		if err != nil {
+			return false
+		}
+
+	}
+
+	return true
+}
+
 func ctyListContains(a []cty.Value, b cty.Value) bool {
 	for _, v := range a {
 		err := isCtyValueValid(v, b)
@@ -83,6 +103,11 @@ func isCtyValueValid(a cty.Value, b cty.Value) error {
 		if !valid {
 			return fmt.Errorf("should contain %s, received: %s", a.GoString(), b.GoString())
 		}
+	case mapCtyType:
+		valid := isCtyMapValid(a, b)
+		if !valid {
+			return fmt.Errorf("should contain %s, received: %s", a.GoString(), b.GoString())
+		}
 	default:
 		return fmt.Errorf("non-implemented type - should be %s, received: %s", a.GoString(), b.GoString())
 	}
@@ -96,6 +121,7 @@ const (
 	unknownCtyType = iota
 	primitiveCtyType
 	listCtyType
+	mapCtyType
 )
 
 func getCtyType(a cty.Value) ctyType {
@@ -110,7 +136,7 @@ func getCtyType(a cty.Value) ctyType {
 	// Adding the other cases to make it easier in the
 	// future to build logic for more types.
 	case a.Type().IsMapType():
-		return unknownCtyType
+		return mapCtyType
 	case a.Type().IsSetType():
 		return unknownCtyType
 	case a.Type().IsObjectType():
