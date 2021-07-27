@@ -443,10 +443,6 @@ func getAndValidateTokenFromString(tokenString string, key jwk.Key) (jwt.Token, 
 	return token, nil
 }
 
-func isSameType(a, b interface{}) bool {
-	return fmt.Sprintf("%T", a) == fmt.Sprintf("%T", b)
-}
-
 func getKeySetFromKey(key jwk.Key) jwk.Set {
 	keySet := jwk.NewSet()
 	keySet.Add(key)
