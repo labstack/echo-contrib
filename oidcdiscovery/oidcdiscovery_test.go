@@ -981,6 +981,16 @@ func TestIsRequiredClaimsValid(t *testing.T) {
 			expectedResult: false,
 		},
 		{
+			testDescription: "required is string, token is int",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": 1337,
+			},
+			expectedResult: false,
+		},
+		{
 			testDescription: "matching with string",
 			requiredClaims: map[string]interface{}{
 				"foo": "bar",
@@ -1057,6 +1067,20 @@ func TestIsRequiredClaimsValid(t *testing.T) {
 			expectedResult: true,
 		},
 		{
+			testDescription: "required slice contains in token slice",
+			requiredClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": []string{"foo"},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": "bar",
+				"bar": 1337,
+				"baz": []string{"foo", "bar", "baz"},
+			},
+			expectedResult: true,
+		},
+		{
 			testDescription: "not matching slice",
 			requiredClaims: map[string]interface{}{
 				"foo": "bar",
@@ -1070,10 +1094,24 @@ func TestIsRequiredClaimsValid(t *testing.T) {
 			},
 			expectedResult: false,
 		},
+		{
+			testDescription: "using non-implemented type",
+			requiredClaims: map[string]interface{}{
+				"foo": map[string]string{
+					"foo": "bar",
+				},
+			},
+			tokenClaims: map[string]interface{}{
+				"foo": map[string]string{
+					"foo": "bar",
+				},
+			},
+			expectedResult: false,
+		},
 	}
 
-	for i, c := range cases {
-		t.Logf("Test iteration %d: %s", i, c.testDescription)
+	for _, c := range cases {
+		// t.Logf("Test iteration %d: %s", i, c.testDescription)
 
 		err := isRequiredClaimsValid(c.requiredClaims, c.tokenClaims)
 
@@ -1082,6 +1120,7 @@ func TestIsRequiredClaimsValid(t *testing.T) {
 
 		} else {
 			require.Error(t, err)
+			t.Logf("Received error: %v", err)
 		}
 	}
 }

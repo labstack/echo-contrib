@@ -397,27 +397,20 @@ func isTokenTypeValid(requiredTokenType string, tokenString string) bool {
 }
 
 func isRequiredClaimsValid(requiredClaims map[string]interface{}, tokenClaims map[string]interface{}) error {
-	for k, v := range requiredClaims {
-		tokenValue, ok := tokenClaims[k]
+	for requiredKey, requiredValue := range requiredClaims {
+		tokenValue, ok := tokenClaims[requiredKey]
 		if !ok {
-			return fmt.Errorf("token does not have claim: %s", k)
+			return fmt.Errorf("token does not have the claim: %s", requiredKey)
 		}
 
-		if !isSameType(v, tokenValue) {
-			return fmt.Errorf("required claim %s is of type %T, token contains type: %T", k, v, tokenValue)
+		required, received, err := getCtyValues(requiredValue, tokenValue)
+		if err != nil {
+			return err
 		}
 
-		switch v.(type) {
-		case string, int, int8, int16, int32, int64, float32, float64, bool:
-			if v != tokenValue {
-				return fmt.Errorf("required claim %s should be %v, token contained: %v", k, v, tokenValue)
-			}
-		case []string, []int, []int8, []int16, []int32, []int64, []float32, []float64:
-			if !sliceContains(v, tokenValue) {
-				return fmt.Errorf("required claim %s (%T) contains the values '%v' but received: %v", k, v, v, tokenValue)
-			}
-		default:
-			return fmt.Errorf("required claim %s is of unknown type: %T", k, v)
+		err = isCtyValueValid(required, received)
+		if err != nil {
+			return fmt.Errorf("claim %q not valid: %w", requiredKey, err)
 		}
 	}
 
