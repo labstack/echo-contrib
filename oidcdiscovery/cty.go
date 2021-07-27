@@ -8,6 +8,10 @@ import (
 )
 
 func getCtyValue(a interface{}) (cty.Value, error) {
+	if a == nil {
+		return cty.NilVal, fmt.Errorf("input is nil")
+	}
+
 	valueType, err := gocty.ImpliedType(a)
 	if err != nil {
 		return cty.NilVal, fmt.Errorf("unable to get cty.Type: %w", err)
@@ -15,6 +19,7 @@ func getCtyValue(a interface{}) (cty.Value, error) {
 
 	value, err := gocty.ToCtyValue(a, valueType)
 	if err != nil {
+		// we should never receive this error
 		return cty.NilVal, fmt.Errorf("unable to get cty.Value: %w", err)
 	}
 
@@ -36,10 +41,26 @@ func getCtyValues(a interface{}, b interface{}) (cty.Value, cty.Value, error) {
 }
 
 func isCtyPrimitiveValueValid(a cty.Value, b cty.Value) bool {
+	if !isCtyTypeSame(a, b) {
+		return false
+	}
+
+	if getCtyType(a) != primitiveCtyType {
+		return false
+	}
+
 	return a.Equals(b) == cty.True
 }
 
 func isCtyListValid(a cty.Value, b cty.Value) bool {
+	if !isCtyTypeSame(a, b) {
+		return false
+	}
+
+	if getCtyType(a) != listCtyType {
+		return false
+	}
+
 	listA := a.AsValueSlice()
 	listB := b.AsValueSlice()
 
@@ -53,6 +74,14 @@ func isCtyListValid(a cty.Value, b cty.Value) bool {
 }
 
 func isCtyMapValid(a cty.Value, b cty.Value) bool {
+	if !isCtyTypeSame(a, b) {
+		return false
+	}
+
+	if getCtyType(a) != mapCtyType {
+		return false
+	}
+
 	mapA := a.AsValueMap()
 	mapB := b.AsValueMap()
 
