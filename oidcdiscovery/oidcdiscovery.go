@@ -33,6 +33,12 @@ type Options struct {
 	// Defaults to 5 seconds
 	JwksFetchTimeout time.Duration
 
+	// JwksRateLimit takes an uint and makes sure that the jwks will at a maximum
+	// be requested these many times per second.
+	// Defaults to 1 (Request Per Second)
+	// Please observe: Requests that force update of jwks (like wrong keyID) will be rate limited
+	JwksRateLimit uint
+
 	// AllowedTokenDrift adds the duration to the token expiration to allow
 	// for time drift between parties.
 	// Defaults to 10 seconds
@@ -92,6 +98,7 @@ type handler struct {
 	discoveryUri      string
 	jwksUri           string
 	jwksFetchTimeout  time.Duration
+	jwksRateLimit     uint
 	allowedTokenDrift time.Duration
 	requiredAudience  string
 	requiredTokenType string
@@ -106,6 +113,7 @@ func newHandler(opts Options) *handler {
 		discoveryUri:      opts.DiscoveryUri,
 		jwksUri:           opts.JwksUri,
 		jwksFetchTimeout:  opts.JwksFetchTimeout,
+		jwksRateLimit:     opts.JwksRateLimit,
 		allowedTokenDrift: opts.AllowedTokenDrift,
 		requiredTokenType: opts.RequiredTokenType,
 		requiredAudience:  opts.RequiredAudience,
@@ -141,11 +149,14 @@ func (h *handler) loadJwks() error {
 	if h.jwksFetchTimeout == 0 {
 		h.jwksFetchTimeout = 5 * time.Second
 	}
+	if h.jwksRateLimit == 0 {
+		h.jwksRateLimit = 1
+	}
 	if h.allowedTokenDrift == 0 {
 		h.allowedTokenDrift = 10 * time.Second
 	}
 
-	keyHandler, err := newKeyHandler(h.jwksUri, h.jwksFetchTimeout)
+	keyHandler, err := newKeyHandler(h.jwksUri, h.jwksFetchTimeout, h.jwksRateLimit)
 	if err != nil {
 		return fmt.Errorf("unable to initialize keyHandler: %w", err)
 	}

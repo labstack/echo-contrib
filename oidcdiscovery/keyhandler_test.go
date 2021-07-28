@@ -16,7 +16,7 @@ func TestNewKeyHandler(t *testing.T) {
 	jwksUri, err := getJwksUriFromDiscoveryUri(discoveryUri, 10*time.Millisecond)
 	require.NoError(t, err)
 
-	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond)
+	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond, 100)
 	require.NoError(t, err)
 
 	keySet1 := keyHandler.getKeySet()
@@ -60,7 +60,7 @@ func TestNewKeyHandler(t *testing.T) {
 	require.NotEqual(t, key1, key2)
 
 	// Validate that error is returned when using fake jwks uri
-	_, err = newKeyHandler("http://foo.bar/baz", 10*time.Millisecond)
+	_, err = newKeyHandler("http://foo.bar/baz", 10*time.Millisecond, 100)
 	require.Error(t, err)
 
 	// Validate that error is returned when keys are rotated,
@@ -81,7 +81,8 @@ func TestUpdate(t *testing.T) {
 	jwksUri, err := getJwksUriFromDiscoveryUri(discoveryUri, 10*time.Millisecond)
 	require.NoError(t, err)
 
-	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond)
+	rateLimit := uint(100)
+	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond, rateLimit)
 	require.NoError(t, err)
 
 	require.Equal(t, 1, keyHandler.keyUpdateCount)
@@ -135,4 +136,15 @@ func TestUpdate(t *testing.T) {
 
 	multipleConcurrentUpdates()
 	require.Equal(t, 6, keyHandler.keyUpdateCount)
+
+	// test rate limit
+	start := time.Now()
+	err = keyHandler.waitForUpdateKeySet()
+	require.NoError(t, err)
+	stop := time.Now()
+	expectedStop := start.Add(time.Second / time.Duration(rateLimit))
+
+	require.WithinDuration(t, expectedStop, stop, 2*time.Millisecond)
+
+	require.Equal(t, 7, keyHandler.keyUpdateCount)
 }

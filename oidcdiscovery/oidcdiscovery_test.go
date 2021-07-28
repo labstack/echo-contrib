@@ -781,7 +781,7 @@ func TestGetAndValidateTokenFromString(t *testing.T) {
 	jwksUri, err := getJwksUriFromDiscoveryUri(discoveryUri, 10*time.Millisecond)
 	require.NoError(t, err)
 
-	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond)
+	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond, 100)
 	require.NoError(t, err)
 
 	validKey, ok := keyHandler.getKeySet().Get(0)

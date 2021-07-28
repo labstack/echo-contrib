@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/jwk"
+	"go.uber.org/ratelimit"
 	"golang.org/x/sync/semaphore"
 )
 
@@ -18,14 +19,16 @@ type keyHandler struct {
 	keyUpdateSemaphore *semaphore.Weighted
 	keyUpdateChannel   chan error
 	keyUpdateCount     int
+	keyUpdateLimiter   ratelimit.Limiter
 }
 
-func newKeyHandler(jwksUri string, fetchTimeout time.Duration) (*keyHandler, error) {
+func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint) (*keyHandler, error) {
 	h := &keyHandler{
 		jwksURI:            jwksUri,
 		fetchTimeout:       fetchTimeout,
 		keyUpdateSemaphore: semaphore.NewWeighted(int64(1)),
 		keyUpdateChannel:   make(chan error),
+		keyUpdateLimiter:   ratelimit.New(int(keyUpdateRPS)),
 	}
 
 	err := h.updateKeySet()
@@ -56,6 +59,7 @@ func (h *keyHandler) waitForUpdateKeySet() error {
 	ok := h.keyUpdateSemaphore.TryAcquire(1)
 	if ok {
 		defer h.keyUpdateSemaphore.Release(1)
+		_ = h.keyUpdateLimiter.Take()
 		err := h.updateKeySet()
 
 		for {
