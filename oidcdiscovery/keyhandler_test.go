@@ -1,6 +1,7 @@
 package oidcdiscovery
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -71,4 +72,67 @@ func TestNewKeyHandler(t *testing.T) {
 	op.Close(t)
 	_, err = keyHandler.getByKeyID(keyID3, false)
 	require.Error(t, err)
+}
+
+func TestUpdate(t *testing.T) {
+	op := server.NewTesting(t)
+	issuer := op.GetURL(t)
+	discoveryUri := getDiscoveryUriFromIssuer(issuer)
+	jwksUri, err := getJwksUriFromDiscoveryUri(discoveryUri, 10*time.Millisecond)
+	require.NoError(t, err)
+
+	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond)
+	require.NoError(t, err)
+
+	require.Equal(t, 1, keyHandler.keyUpdateCount)
+
+	err = keyHandler.waitForUpdateKeySet()
+	require.NoError(t, err)
+
+	require.Equal(t, 2, keyHandler.keyUpdateCount)
+
+	concurrentUpdate := func(workers int) {
+		wg1 := sync.WaitGroup{}
+		wg1.Add(1)
+
+		wg2 := sync.WaitGroup{}
+		for i := 0; i < workers; i++ {
+			wg2.Add(1)
+			go func() {
+				wg1.Wait()
+				err := keyHandler.waitForUpdateKeySet()
+				require.NoError(t, err)
+				wg2.Done()
+			}()
+		}
+		wg1.Done()
+		wg2.Wait()
+	}
+
+	concurrentUpdate(100)
+	require.Equal(t, 3, keyHandler.keyUpdateCount)
+	concurrentUpdate(100)
+	require.Equal(t, 4, keyHandler.keyUpdateCount)
+	concurrentUpdate(100)
+	require.Equal(t, 5, keyHandler.keyUpdateCount)
+
+	multipleConcurrentUpdates := func() {
+		wg1 := sync.WaitGroup{}
+		wg1.Add(1)
+
+		wg2 := sync.WaitGroup{}
+		for i := 0; i < 10; i++ {
+			wg2.Add(1)
+			go func() {
+				wg1.Wait()
+				concurrentUpdate(10)
+				wg2.Done()
+			}()
+		}
+		wg1.Done()
+		wg2.Wait()
+	}
+
+	multipleConcurrentUpdates()
+	require.Equal(t, 6, keyHandler.keyUpdateCount)
 }

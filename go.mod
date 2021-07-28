@@ -21,6 +21,7 @@ require (
 	github.com/xenitab/dispans v0.0.3
 	github.com/zclconf/go-cty v1.9.0
 	golang.org/x/oauth2 v0.0.0-20200107190931-bf48bf16ab8d
+	golang.org/x/sync v0.0.0-20210220032951-036812b2e83c
 	golang.org/x/sys v0.0.0-20210630005230-0f9fa26af87c // indirect
 	golang.org/x/tools v0.1.5 // indirect
 )

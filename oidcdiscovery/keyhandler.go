@@ -7,19 +7,25 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/jwk"
+	"golang.org/x/sync/semaphore"
 )
 
 type keyHandler struct {
 	sync.RWMutex
-	jwksURI      string
-	keySet       jwk.Set
-	fetchTimeout time.Duration
+	jwksURI            string
+	keySet             jwk.Set
+	fetchTimeout       time.Duration
+	keyUpdateSemaphore *semaphore.Weighted
+	keyUpdateChannel   chan error
+	keyUpdateCount     int
 }
 
 func newKeyHandler(jwksUri string, fetchTimeout time.Duration) (*keyHandler, error) {
 	h := &keyHandler{
-		jwksURI:      jwksUri,
-		fetchTimeout: fetchTimeout,
+		jwksURI:            jwksUri,
+		fetchTimeout:       fetchTimeout,
+		keyUpdateSemaphore: semaphore.NewWeighted(int64(1)),
+		keyUpdateChannel:   make(chan error),
 	}
 
 	err := h.updateKeySet()
@@ -40,9 +46,28 @@ func (h *keyHandler) updateKeySet() error {
 
 	h.Lock()
 	h.keySet = keySet
+	h.keyUpdateCount = h.keyUpdateCount + 1
 	h.Unlock()
 
 	return nil
+}
+
+func (h *keyHandler) waitForUpdateKeySet() error {
+	ok := h.keyUpdateSemaphore.TryAcquire(1)
+	if ok {
+		defer h.keyUpdateSemaphore.Release(1)
+		err := h.updateKeySet()
+
+		for {
+			select {
+			case h.keyUpdateChannel <- err:
+			default:
+				return err
+			}
+		}
+	}
+
+	return <-h.keyUpdateChannel
 }
 
 func (h *keyHandler) getKeySet() jwk.Set {
@@ -56,7 +81,7 @@ func (h *keyHandler) getByKeyID(keyID string, retry bool) (jwk.Key, error) {
 	key, found := keySet.LookupKeyID(keyID)
 
 	if !found && !retry {
-		err := h.updateKeySet()
+		err := h.waitForUpdateKeySet()
 		if err != nil {
 			return nil, fmt.Errorf("unable to update key set for key %q: %v", keyID, err)
 		}
