@@ -30,12 +30,12 @@ func TestNewKeyHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test valid key id
-	key1, err := keyHandler.getByKeyID(keyID1, false)
+	key1, err := keyHandler.getByKeyID(keyID1)
 	require.NoError(t, err)
 	require.Equal(t, expectedKey1, key1)
 
 	// Test invalid key id
-	_, err = keyHandler.getByKeyID("foo", false)
+	_, err = keyHandler.getByKeyID("foo")
 	require.Error(t, err)
 
 	// Test with rotated keys
@@ -45,7 +45,7 @@ func TestNewKeyHandler(t *testing.T) {
 	keyID2, err := getKeyIDFromTokenString(token2.AccessToken)
 	require.NoError(t, err)
 
-	key2, err := keyHandler.getByKeyID(keyID2, false)
+	key2, err := keyHandler.getByKeyID(keyID2)
 	require.NoError(t, err)
 
 	keySet2 := keyHandler.getKeySet()
@@ -70,7 +70,7 @@ func TestNewKeyHandler(t *testing.T) {
 	keyID3, err := getKeyIDFromTokenString(token3.AccessToken)
 	require.NoError(t, err)
 	op.Close(t)
-	_, err = keyHandler.getByKeyID(keyID3, false)
+	_, err = keyHandler.getByKeyID(keyID3)
 	require.Error(t, err)
 }
 
@@ -87,7 +87,7 @@ func TestUpdate(t *testing.T) {
 
 	require.Equal(t, 1, keyHandler.keyUpdateCount)
 
-	err = keyHandler.waitForUpdateKeySet()
+	_, err = keyHandler.waitForUpdateKeySet()
 	require.NoError(t, err)
 
 	require.Equal(t, 2, keyHandler.keyUpdateCount)
@@ -101,7 +101,7 @@ func TestUpdate(t *testing.T) {
 			wg2.Add(1)
 			go func() {
 				wg1.Wait()
-				err := keyHandler.waitForUpdateKeySet()
+				_, err := keyHandler.waitForUpdateKeySet()
 				require.NoError(t, err)
 				wg2.Done()
 			}()
@@ -139,12 +139,12 @@ func TestUpdate(t *testing.T) {
 
 	// test rate limit
 	start := time.Now()
-	err = keyHandler.waitForUpdateKeySet()
+	_, err = keyHandler.waitForUpdateKeySet()
 	require.NoError(t, err)
 	stop := time.Now()
 	expectedStop := start.Add(time.Second / time.Duration(rateLimit))
 
-	require.WithinDuration(t, expectedStop, stop, 2*time.Millisecond)
+	require.WithinDuration(t, expectedStop, stop, 4*time.Millisecond)
 
 	require.Equal(t, 7, keyHandler.keyUpdateCount)
 }

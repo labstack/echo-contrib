@@ -17,9 +17,14 @@ type keyHandler struct {
 	keySet             jwk.Set
 	fetchTimeout       time.Duration
 	keyUpdateSemaphore *semaphore.Weighted
-	keyUpdateChannel   chan error
+	keyUpdateChannel   chan keyUpdate
 	keyUpdateCount     int
 	keyUpdateLimiter   ratelimit.Limiter
+}
+
+type keyUpdate struct {
+	keySet jwk.Set
+	err    error
 }
 
 func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint) (*keyHandler, error) {
@@ -27,11 +32,11 @@ func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint
 		jwksURI:            jwksUri,
 		fetchTimeout:       fetchTimeout,
 		keyUpdateSemaphore: semaphore.NewWeighted(int64(1)),
-		keyUpdateChannel:   make(chan error),
+		keyUpdateChannel:   make(chan keyUpdate),
 		keyUpdateLimiter:   ratelimit.New(int(keyUpdateRPS)),
 	}
 
-	err := h.updateKeySet()
+	_, err := h.updateKeySet()
 	if err != nil {
 		return nil, err
 	}
@@ -39,12 +44,12 @@ func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint
 	return h, nil
 }
 
-func (h *keyHandler) updateKeySet() error {
+func (h *keyHandler) updateKeySet() (jwk.Set, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), h.fetchTimeout)
 	defer cancel()
 	keySet, err := jwk.Fetch(ctx, h.jwksURI)
 	if err != nil {
-		return fmt.Errorf("unable to fetch keys from %q: %v", h.jwksURI, err)
+		return nil, fmt.Errorf("unable to fetch keys from %q: %v", h.jwksURI, err)
 	}
 
 	h.Lock()
@@ -52,26 +57,32 @@ func (h *keyHandler) updateKeySet() error {
 	h.keyUpdateCount = h.keyUpdateCount + 1
 	h.Unlock()
 
-	return nil
+	return keySet, nil
 }
 
-func (h *keyHandler) waitForUpdateKeySet() error {
+func (h *keyHandler) waitForUpdateKeySet() (jwk.Set, error) {
 	ok := h.keyUpdateSemaphore.TryAcquire(1)
 	if ok {
 		defer h.keyUpdateSemaphore.Release(1)
 		_ = h.keyUpdateLimiter.Take()
-		err := h.updateKeySet()
+		keySet, err := h.updateKeySet()
+
+		k := keyUpdate{
+			keySet,
+			err,
+		}
 
 		for {
 			select {
-			case h.keyUpdateChannel <- err:
+			case h.keyUpdateChannel <- k:
 			default:
-				return err
+				return keySet, err
 			}
 		}
 	}
 
-	return <-h.keyUpdateChannel
+	k := <-h.keyUpdateChannel
+	return k.keySet, k.err
 }
 
 func (h *keyHandler) getKeySet() jwk.Set {
@@ -80,21 +91,22 @@ func (h *keyHandler) getKeySet() jwk.Set {
 	return h.keySet
 }
 
-func (h *keyHandler) getByKeyID(keyID string, retry bool) (jwk.Key, error) {
+func (h *keyHandler) getByKeyID(keyID string) (jwk.Key, error) {
 	keySet := h.getKeySet()
 	key, found := keySet.LookupKeyID(keyID)
 
-	if !found && !retry {
-		err := h.waitForUpdateKeySet()
+	if !found {
+		updatedKeySet, err := h.waitForUpdateKeySet()
 		if err != nil {
 			return nil, fmt.Errorf("unable to update key set for key %q: %v", keyID, err)
 		}
 
-		return h.getByKeyID(keyID, true)
-	}
+		updatedKey, found := updatedKeySet.LookupKeyID(keyID)
+		if !found {
+			return nil, fmt.Errorf("unable to find key %q", keyID)
+		}
 
-	if !found && retry {
-		return nil, fmt.Errorf("unable to find key %q", keyID)
+		return updatedKey, nil
 	}
 
 	return key, nil

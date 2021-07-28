@@ -184,7 +184,7 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 		return nil, fmt.Errorf("token type %q required", h.requiredTokenType)
 	}
 
-	key, err := h.keyHandler.getByKeyID(keyID, false)
+	key, err := h.keyHandler.getByKeyID(keyID)
 	if err != nil {
 		return nil, err
 	}
