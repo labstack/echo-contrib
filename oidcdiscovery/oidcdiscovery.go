@@ -82,6 +82,15 @@ type Options struct {
 	// },
 	// ```
 	RequiredClaims map[string]interface{}
+
+	// DisableKeyID adjusts if a KeyID needs to be extracted from the token or not
+	// Defaults to false and means KeyID is required to be present in both the jwks and token
+	// The OIDC specification doesn't require KeyID if there's only one key in the jwks:
+	// https://openid.net/specs/openid-connect-core-1_0.html#Signing
+	//
+	// This also means that if enabled, refresh of the jwks will be done if the token can't be
+	// validated due to invalid key. The JWKS fetch will fail if there's more than one key present.
+	DisableKeyID bool
 }
 
 // New returns an OpenID Connect (OIDC) discovery `ParseTokenFunc` to be used
@@ -103,6 +112,7 @@ type handler struct {
 	requiredAudience  string
 	requiredTokenType string
 	requiredClaims    map[string]interface{}
+	disableKeyID      bool
 
 	keyHandler *keyHandler
 }
@@ -118,6 +128,7 @@ func newHandler(opts Options) *handler {
 		requiredTokenType: opts.RequiredTokenType,
 		requiredAudience:  opts.RequiredAudience,
 		requiredClaims:    opts.RequiredClaims,
+		disableKeyID:      opts.DisableKeyID,
 	}
 
 	err := h.loadJwks()
@@ -156,7 +167,7 @@ func (h *handler) loadJwks() error {
 		h.allowedTokenDrift = 10 * time.Second
 	}
 
-	keyHandler, err := newKeyHandler(h.jwksUri, h.jwksFetchTimeout, h.jwksRateLimit)
+	keyHandler, err := newKeyHandler(h.jwksUri, h.jwksFetchTimeout, h.jwksRateLimit, h.disableKeyID)
 	if err != nil {
 		return fmt.Errorf("unable to initialize keyHandler: %w", err)
 	}
@@ -174,22 +185,17 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 		}
 	}
 
-	keyID, err := getKeyIDFromTokenString(auth)
-	if err != nil {
-		return nil, err
-	}
-
 	tokenTypeValid := isTokenTypeValid(h.requiredTokenType, auth)
 	if !tokenTypeValid {
 		return nil, fmt.Errorf("token type %q required", h.requiredTokenType)
 	}
 
-	key, err := h.keyHandler.getByKeyID(keyID)
+	key, err := getPublicKey(auth, h.keyHandler, h.disableKeyID)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("unable to get public key: %w", err)
 	}
 
-	token, err := getAndValidateTokenFromString(auth, key)
+	token, err := getAndValidateTokenFromString(auth, key, h.keyHandler, h.disableKeyID)
 	if err != nil {
 		return nil, err
 	}
@@ -380,11 +386,72 @@ func isRequiredClaimsValid(requiredClaims map[string]interface{}, tokenClaims ma
 	return nil
 }
 
-func getAndValidateTokenFromString(tokenString string, key jwk.Key) (jwt.Token, error) {
+type keyIDGetter interface {
+	getByKeyID(keyID string) (jwk.Key, error)
+}
+
+type keySetGetter interface {
+	getKeySet() jwk.Set
+}
+
+type keyGetter interface {
+	keyIDGetter
+	keySetGetter
+}
+
+func getPublicKey(tokenString string, keyGetter keyGetter, disableKeyID bool) (jwk.Key, error) {
+	if disableKeyID {
+		return getPublicKeyWithoutKeyID(keyGetter)
+
+	}
+
+	return getPublicKeyWithKeyID(tokenString, keyGetter)
+}
+
+func getPublicKeyWithKeyID(tokenString string, keyIDGetter keyIDGetter) (jwk.Key, error) {
+	keyID, err := getKeyIDFromTokenString(tokenString)
+	if err != nil {
+		return nil, err
+	}
+
+	key, err := keyIDGetter.getByKeyID(keyID)
+	if err != nil {
+		return nil, err
+	}
+
+	return key, nil
+}
+
+func getPublicKeyWithoutKeyID(keySetGetter keySetGetter) (jwk.Key, error) {
+	keySet := keySetGetter.getKeySet()
+
+	key, found := keySet.Get(0)
+	if !found {
+		return nil, fmt.Errorf("no key found")
+	}
+
+	return key, nil
+}
+
+type keyUpdater interface {
+	waitForUpdateKeySet() (jwk.Set, error)
+}
+
+func getAndValidateTokenFromString(tokenString string, key jwk.Key, keyUpdater keyUpdater, disableKeyID bool) (jwt.Token, error) {
 	keySet := getKeySetFromKey(key)
 
-	token, err := jwt.ParseString(tokenString, jwt.WithKeySet(keySet))
+	token, err := jwt.ParseString(tokenString, jwt.WithKeySet(keySet), jwt.UseDefaultKey(disableKeyID))
 	if err != nil {
+		// if keyID is disabled and the signature verification fails, update jwks and try again
+		if disableKeyID && strings.Contains(err.Error(), "failed to verify signature") {
+			updatedKeySet, err := keyUpdater.waitForUpdateKeySet()
+			if err != nil {
+				return nil, err
+			}
+
+			return jwt.ParseString(tokenString, jwt.WithKeySet(updatedKeySet), jwt.UseDefaultKey(disableKeyID))
+		}
+
 		return nil, err
 	}
 

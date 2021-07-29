@@ -781,7 +781,7 @@ func TestGetAndValidateTokenFromString(t *testing.T) {
 	jwksUri, err := getJwksUriFromDiscoveryUri(discoveryUri, 10*time.Millisecond)
 	require.NoError(t, err)
 
-	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond, 100)
+	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond, 100, false)
 	require.NoError(t, err)
 
 	validKey, ok := keyHandler.getKeySet().Get(0)
@@ -854,7 +854,7 @@ func TestGetAndValidateTokenFromString(t *testing.T) {
 	for i, c := range cases {
 		t.Logf("Test iteration %d: %s", i, c.testDescription)
 
-		token, err := getAndValidateTokenFromString(c.tokenString, c.key)
+		token, err := getAndValidateTokenFromString(c.tokenString, c.key, keyHandler, false)
 		if c.expectedError {
 			require.Error(t, err)
 		} else {
@@ -862,6 +862,98 @@ func TestGetAndValidateTokenFromString(t *testing.T) {
 			require.NotEmpty(t, token)
 		}
 	}
+}
+
+func TestGetAndValidateTokenFromStringWithKeyID(t *testing.T) {
+	disableKeyID := false
+	keySets := testNewTestKeySet(t)
+	testServer := testNewJwksServer(t, keySets)
+	defer testServer.Close()
+
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	require.NoError(t, err)
+
+	newTokenString := func() string {
+		jwtToken := jwt.New()
+		jwtToken.Set("foo", "bar")
+
+		headers := jws.NewHeaders()
+		headers.Set(jws.TypeKey, "JWT")
+
+		privKey, found := keySets.privateKeySet.Get(0)
+		require.True(t, found)
+
+		tokenBytes, err := jwt.Sign(jwtToken, jwa.ES384, privKey, jwt.WithHeaders(headers))
+		require.NoError(t, err)
+
+		return string(tokenBytes)
+	}
+
+	token1 := newTokenString()
+	pubKey, err := getPublicKey(token1, keyHandler, disableKeyID)
+	require.NoError(t, err)
+
+	_, err = getAndValidateTokenFromString(token1, pubKey, keyHandler, disableKeyID)
+	require.NoError(t, err)
+
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	token2 := newTokenString()
+
+	// rotation of jwks should not be done inside the
+	_, err = getAndValidateTokenFromString(token2, pubKey, keyHandler, disableKeyID)
+	require.Error(t, err)
+}
+
+func TestGetAndValidateTokenFromStringWithoutKeyID(t *testing.T) {
+	disableKeyID := true
+	keySets := testNewTestKeySet(t)
+	testServer := testNewJwksServer(t, keySets)
+
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	require.NoError(t, err)
+
+	newTokenString := func() string {
+		jwtToken := jwt.New()
+		jwtToken.Set("foo", "bar")
+
+		headers := jws.NewHeaders()
+		headers.Set(jws.TypeKey, "JWT")
+
+		privKey, found := keySets.privateKeySet.Get(0)
+		require.True(t, found)
+
+		tokenBytes, err := jwt.Sign(jwtToken, jwa.ES384, privKey, jwt.WithHeaders(headers))
+		require.NoError(t, err)
+
+		return string(tokenBytes)
+	}
+
+	token1 := newTokenString()
+	pubKey, err := getPublicKey(token1, keyHandler, disableKeyID)
+	require.NoError(t, err)
+
+	_, err = getAndValidateTokenFromString(token1, pubKey, keyHandler, disableKeyID)
+	require.NoError(t, err)
+
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	token2 := newTokenString()
+
+	_, err = getAndValidateTokenFromString(token2, pubKey, keyHandler, disableKeyID)
+	require.NoError(t, err)
+
+	testServer.Close()
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	token3 := newTokenString()
+
+	_, err = getAndValidateTokenFromString(token3, pubKey, keyHandler, disableKeyID)
+	require.Error(t, err)
 }
 
 func TestIsRequiredClaimsValid(t *testing.T) {

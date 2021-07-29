@@ -14,6 +14,7 @@ import (
 type keyHandler struct {
 	sync.RWMutex
 	jwksURI            string
+	disableKeyID       bool
 	keySet             jwk.Set
 	fetchTimeout       time.Duration
 	keyUpdateSemaphore *semaphore.Weighted
@@ -27,9 +28,10 @@ type keyUpdate struct {
 	err    error
 }
 
-func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint) (*keyHandler, error) {
+func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint, disableKeyID bool) (*keyHandler, error) {
 	h := &keyHandler{
 		jwksURI:            jwksUri,
+		disableKeyID:       disableKeyID,
 		fetchTimeout:       fetchTimeout,
 		keyUpdateSemaphore: semaphore.NewWeighted(int64(1)),
 		keyUpdateChannel:   make(chan keyUpdate),
@@ -50,6 +52,10 @@ func (h *keyHandler) updateKeySet() (jwk.Set, error) {
 	keySet, err := jwk.Fetch(ctx, h.jwksURI)
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch keys from %q: %v", h.jwksURI, err)
+	}
+
+	if h.disableKeyID && keySet.Len() != 1 {
+		return nil, fmt.Errorf("keyID is disabled, but received a keySet with more than one key: %d", keySet.Len())
 	}
 
 	h.Lock()
@@ -93,6 +99,7 @@ func (h *keyHandler) getKeySet() jwk.Set {
 
 func (h *keyHandler) getByKeyID(keyID string) (jwk.Key, error) {
 	keySet := h.getKeySet()
+
 	key, found := keySet.LookupKeyID(keyID)
 
 	if !found {
