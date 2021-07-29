@@ -13,6 +13,7 @@ require (
 	github.com/lestrrat-go/jwx v1.2.4
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/openzipkin/zipkin-go v0.2.5
+	github.com/phayes/freeport v0.0.0-20180830031419-95f893ade6f2
 	github.com/prometheus/client_golang v1.10.0
 	github.com/prometheus/common v0.25.0
 	github.com/stretchr/testify v1.7.0

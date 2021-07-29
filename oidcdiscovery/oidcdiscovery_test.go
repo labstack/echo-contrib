@@ -1,13 +1,16 @@
 package oidcdiscovery
 
 import (
+	"context"
 	"crypto"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rand"
 	"fmt"
+	"net"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
@@ -17,6 +20,7 @@ import (
 	"github.com/lestrrat-go/jwx/jwk"
 	"github.com/lestrrat-go/jwx/jws"
 	"github.com/lestrrat-go/jwx/jwt"
+	"github.com/phayes/freeport"
 	"github.com/stretchr/testify/require"
 	"github.com/xenitab/dispans/server"
 	"golang.org/x/oauth2"
@@ -69,16 +73,30 @@ func BenchmarkHandler(b *testing.B) {
 		}),
 	})(handler)
 
-	var tokens []*oauth2.Token
-	for i := 0; i < b.N; i++ {
-		tokens = append(tokens, op.GetToken(b))
-	}
+	concurrencyLevels := []int{5, 10, 20, 50}
+	for _, clients := range concurrencyLevels {
+		b.Run(fmt.Sprintf("%d_clients", clients), func(b *testing.B) {
+			var tokens []*oauth2.Token
+			for i := 0; i < b.N; i++ {
+				tokens = append(tokens, op.GetToken(b))
+			}
 
-	b.ResetTimer()
+			b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
-		token := tokens[i]
-		testHandlerWithAuthentication(b, token, h, e)
+			var wg sync.WaitGroup
+			ch := make(chan int, clients)
+			for i := 0; i < b.N; i++ {
+				token := tokens[i]
+				wg.Add(1)
+				ch <- 1
+				go func() {
+					defer wg.Done()
+					testHandlerWithAuthentication(b, token, h, e)
+					<-ch
+				}()
+			}
+			wg.Wait()
+		})
 	}
 }
 
@@ -100,17 +118,105 @@ func BenchmarkHandlerRequirements(b *testing.B) {
 		}),
 	})(handler)
 
-	var tokens []*oauth2.Token
-	for i := 0; i < b.N; i++ {
-		tokens = append(tokens, op.GetToken(b))
-	}
+	concurrencyLevels := []int{5, 10, 20, 50}
+	for _, clients := range concurrencyLevels {
+		b.Run(fmt.Sprintf("%d_clients", clients), func(b *testing.B) {
+			var tokens []*oauth2.Token
+			for i := 0; i < b.N; i++ {
+				tokens = append(tokens, op.GetToken(b))
+			}
 
-	b.ResetTimer()
+			b.ResetTimer()
 
-	for i := 0; i < b.N; i++ {
-		token := tokens[i]
-		testHandlerWithAuthentication(b, token, h, e)
+			var wg sync.WaitGroup
+			ch := make(chan int, clients)
+			for i := 0; i < b.N; i++ {
+				token := tokens[i]
+				wg.Add(1)
+				ch <- 1
+				go func() {
+					defer wg.Done()
+					testHandlerWithAuthentication(b, token, h, e)
+					<-ch
+				}()
+			}
+			wg.Wait()
+		})
 	}
+}
+
+func BenchmarkHandlerHttp(b *testing.B) {
+	op := server.NewTesting(b)
+	defer op.Close(b)
+
+	handler := testGetEchoHandler(b)
+
+	e := echo.New()
+	e.HideBanner = true
+	e.HidePort = true
+	defer func() {
+		ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+		defer cancel()
+		err := e.Shutdown(ctx)
+		require.NoError(b, err)
+	}()
+
+	e.Use(middleware.JWTWithConfig(middleware.JWTConfig{
+		ParseTokenFunc: New(Options{
+			Issuer: op.GetURL(b),
+		}),
+	}))
+
+	e.GET("/", handler)
+
+	port, err := freeport.GetFreePort()
+	require.NoError(b, err)
+
+	addr := net.JoinHostPort("127.0.0.1", fmt.Sprintf("%d", port))
+	urlString := fmt.Sprintf("http://%s/", addr)
+
+	go func() {
+		err := e.Start(addr)
+		require.ErrorIs(b, err, http.ErrServerClosed)
+	}()
+
+	concurrencyLevels := []int{5, 10, 20, 50}
+	for _, clients := range concurrencyLevels {
+		b.Run(fmt.Sprintf("%d_clients", clients), func(b *testing.B) {
+			var tokens []*oauth2.Token
+			for i := 0; i < b.N; i++ {
+				tokens = append(tokens, op.GetToken(b))
+			}
+
+			b.ResetTimer()
+
+			var wg sync.WaitGroup
+			ch := make(chan int, clients)
+			for i := 0; i < b.N; i++ {
+				token := tokens[i]
+				wg.Add(1)
+				ch <- 1
+				go func() {
+					defer wg.Done()
+					testHttpRequest(b, urlString, token)
+					<-ch
+				}()
+			}
+			wg.Wait()
+		})
+	}
+}
+
+func testHttpRequest(t testing.TB, urlString string, token *oauth2.Token) {
+	req, err := http.NewRequest(http.MethodGet, urlString, nil)
+	require.NoError(t, err)
+	token.SetAuthHeader(req)
+	res, err := http.DefaultClient.Do(req)
+	require.NoError(t, err)
+
+	defer require.NoError(t, res.Body.Close())
+
+	require.Equal(t, http.StatusOK, res.StatusCode)
 }
 
 func TestHandlerLazyLoad(t *testing.T) {
