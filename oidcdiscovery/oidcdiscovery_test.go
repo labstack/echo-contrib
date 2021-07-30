@@ -884,10 +884,10 @@ func TestGetAndValidateTokenFromString(t *testing.T) {
 
 	issuer := op.GetURL(t)
 	discoveryUri := getDiscoveryUriFromIssuer(issuer)
-	jwksUri, err := getJwksUriFromDiscoveryUri(discoveryUri, 10*time.Millisecond)
+	jwksUri, err := getJwksUriFromDiscoveryUri(http.DefaultClient, discoveryUri, 10*time.Millisecond)
 	require.NoError(t, err)
 
-	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond, 100, false)
+	keyHandler, err := newKeyHandler(http.DefaultClient, jwksUri, 10*time.Millisecond, 100, false)
 	require.NoError(t, err)
 
 	validKey, ok := keyHandler.getKeySet().Get(0)
@@ -1293,7 +1293,7 @@ func TestGetAndValidateTokenFromStringWithKeyID(t *testing.T) {
 
 	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
 
-	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	keyHandler, err := newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
 	token1 := testNewTokenString(t, keySets.privateKeySet)
@@ -1322,7 +1322,7 @@ func TestGetAndValidateTokenFromStringWithoutKeyID(t *testing.T) {
 
 	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
 
-	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	keyHandler, err := newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
 	token1 := testNewTokenString(t, keySets.privateKeySet)

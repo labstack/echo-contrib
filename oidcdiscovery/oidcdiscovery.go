@@ -91,6 +91,10 @@ type Options struct {
 	// This also means that if enabled, refresh of the jwks will be done if the token can't be
 	// validated due to invalid key. The JWKS fetch will fail if there's more than one key present.
 	DisableKeyID bool
+
+	// HttpClient takes a *http.Client for external calls
+	// Defaults to http.DefaultClient
+	HttpClient *http.Client
 }
 
 var (
@@ -117,6 +121,7 @@ type handler struct {
 	requiredTokenType string
 	requiredClaims    map[string]interface{}
 	disableKeyID      bool
+	httpClient        *http.Client
 
 	keyHandler *keyHandler
 }
@@ -133,6 +138,7 @@ func newHandler(opts Options) *handler {
 		requiredAudience:  opts.RequiredAudience,
 		requiredClaims:    opts.RequiredClaims,
 		disableKeyID:      opts.DisableKeyID,
+		httpClient:        opts.HttpClient,
 	}
 
 	if h.issuer == "" {
@@ -150,6 +156,9 @@ func newHandler(opts Options) *handler {
 	if h.allowedTokenDrift == 0 {
 		h.allowedTokenDrift = 10 * time.Second
 	}
+	if h.httpClient == nil {
+		h.httpClient = http.DefaultClient
+	}
 
 	if !opts.LazyLoadJwks {
 		err := h.loadJwks()
@@ -163,14 +172,14 @@ func newHandler(opts Options) *handler {
 
 func (h *handler) loadJwks() error {
 	if h.jwksUri == "" {
-		jwksUri, err := getJwksUriFromDiscoveryUri(h.discoveryUri, 5*time.Second)
+		jwksUri, err := getJwksUriFromDiscoveryUri(h.httpClient, h.discoveryUri, 5*time.Second)
 		if err != nil {
 			return fmt.Errorf("unable to fetch jwksUri from discoveryUri (%s): %w", h.discoveryUri, err)
 		}
 		h.jwksUri = jwksUri
 	}
 
-	keyHandler, err := newKeyHandler(h.jwksUri, h.jwksFetchTimeout, h.jwksRateLimit, h.disableKeyID)
+	keyHandler, err := newKeyHandler(h.httpClient, h.jwksUri, h.jwksFetchTimeout, h.jwksRateLimit, h.disableKeyID)
 	if err != nil {
 		return fmt.Errorf("unable to initialize keyHandler: %w", err)
 	}
@@ -260,7 +269,7 @@ func getDiscoveryUriFromIssuer(issuer string) string {
 	return fmt.Sprintf("%s/.well-known/openid-configuration", strings.TrimSuffix(issuer, "/"))
 }
 
-func getJwksUriFromDiscoveryUri(discoveryUri string, fetchTimeout time.Duration) (string, error) {
+func getJwksUriFromDiscoveryUri(httpClient *http.Client, discoveryUri string, fetchTimeout time.Duration) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), fetchTimeout)
 	defer cancel()
 
@@ -271,7 +280,7 @@ func getJwksUriFromDiscoveryUri(discoveryUri string, fetchTimeout time.Duration)
 
 	req.Header.Set("Accept", "application/json")
 
-	res, err := http.DefaultClient.Do(req)
+	res, err := httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}

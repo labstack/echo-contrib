@@ -20,10 +20,10 @@ func TestNewKeyHandler(t *testing.T) {
 	op := server.NewTesting(t)
 	issuer := op.GetURL(t)
 	discoveryUri := getDiscoveryUriFromIssuer(issuer)
-	jwksUri, err := getJwksUriFromDiscoveryUri(discoveryUri, 10*time.Millisecond)
+	jwksUri, err := getJwksUriFromDiscoveryUri(http.DefaultClient, discoveryUri, 10*time.Millisecond)
 	require.NoError(t, err)
 
-	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond, 100, false)
+	keyHandler, err := newKeyHandler(http.DefaultClient, jwksUri, 10*time.Millisecond, 100, false)
 	require.NoError(t, err)
 
 	keySet1 := keyHandler.getKeySet()
@@ -67,7 +67,7 @@ func TestNewKeyHandler(t *testing.T) {
 	require.NotEqual(t, key1, key2)
 
 	// Validate that error is returned when using fake jwks uri
-	_, err = newKeyHandler("http://foo.bar/baz", 10*time.Millisecond, 100, false)
+	_, err = newKeyHandler(http.DefaultClient, "http://foo.bar/baz", 10*time.Millisecond, 100, false)
 	require.Error(t, err)
 
 	// Validate that error is returned when keys are rotated,
@@ -87,11 +87,11 @@ func TestUpdate(t *testing.T) {
 	op := server.NewTesting(t)
 	issuer := op.GetURL(t)
 	discoveryUri := getDiscoveryUriFromIssuer(issuer)
-	jwksUri, err := getJwksUriFromDiscoveryUri(discoveryUri, 10*time.Millisecond)
+	jwksUri, err := getJwksUriFromDiscoveryUri(http.DefaultClient, discoveryUri, 10*time.Millisecond)
 	require.NoError(t, err)
 
 	rateLimit := uint(100)
-	keyHandler, err := newKeyHandler(jwksUri, 10*time.Millisecond, rateLimit, false)
+	keyHandler, err := newKeyHandler(http.DefaultClient, jwksUri, 10*time.Millisecond, rateLimit, false)
 	require.NoError(t, err)
 
 	require.Equal(t, 1, keyHandler.keyUpdateCount)
@@ -167,12 +167,12 @@ func TestNewKeyHandlerWithKeyIDDisabled(t *testing.T) {
 	testServer := testNewJwksServer(t, keySets)
 	defer testServer.Close()
 
-	_, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	_, err := newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
 
-	_, err = newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	_, err = newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.Error(t, err)
 }
 
@@ -185,12 +185,12 @@ func TestNewKeyHandlerWithKeyIDEnabled(t *testing.T) {
 	testServer := testNewJwksServer(t, keySets)
 	defer testServer.Close()
 
-	_, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	_, err := newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
 
-	_, err = newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	_, err = newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 }
 
@@ -205,7 +205,7 @@ func TestUpdateKeySetWithKeyIDDisabled(t *testing.T) {
 	testServer := testNewJwksServer(t, keySets)
 	defer testServer.Close()
 
-	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	keyHandler, err := newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
 	_, err = keyHandler.updateKeySet(ctx)
@@ -228,7 +228,7 @@ func TestUpdateKeySetWithKeyIDEnabled(t *testing.T) {
 	testServer := testNewJwksServer(t, keySets)
 	defer testServer.Close()
 
-	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	keyHandler, err := newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
 	_, err = keyHandler.updateKeySet(ctx)
@@ -251,7 +251,7 @@ func TestWaitForUpdateKeyWithKeyIDDisabled(t *testing.T) {
 	testServer := testNewJwksServer(t, keySets)
 	defer testServer.Close()
 
-	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	keyHandler, err := newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
 	_, err = keyHandler.waitForUpdateKey(ctx)
@@ -274,7 +274,7 @@ func TestWaitForUpdateKeyWithKeyIDEnabled(t *testing.T) {
 	testServer := testNewJwksServer(t, keySets)
 	defer testServer.Close()
 
-	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	keyHandler, err := newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
 	_, err = keyHandler.waitForUpdateKey(ctx)

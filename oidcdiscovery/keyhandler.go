@@ -3,6 +3,7 @@ package oidcdiscovery
 import (
 	"context"
 	"fmt"
+	"net/http"
 	"sync"
 	"time"
 
@@ -21,6 +22,7 @@ type keyHandler struct {
 	keyUpdateChannel   chan keyUpdate
 	keyUpdateCount     int
 	keyUpdateLimiter   ratelimit.Limiter
+	httpClient         *http.Client
 }
 
 type keyUpdate struct {
@@ -28,7 +30,7 @@ type keyUpdate struct {
 	err    error
 }
 
-func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint, disableKeyID bool) (*keyHandler, error) {
+func newKeyHandler(httpClient *http.Client, jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint, disableKeyID bool) (*keyHandler, error) {
 	h := &keyHandler{
 		jwksURI:            jwksUri,
 		disableKeyID:       disableKeyID,
@@ -36,6 +38,7 @@ func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint
 		keyUpdateSemaphore: semaphore.NewWeighted(int64(1)),
 		keyUpdateChannel:   make(chan keyUpdate),
 		keyUpdateLimiter:   ratelimit.New(int(keyUpdateRPS)),
+		httpClient:         httpClient,
 	}
 
 	ctx := context.Background()
@@ -51,7 +54,7 @@ func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint
 func (h *keyHandler) updateKeySet(ctx context.Context) (jwk.Set, error) {
 	ctx, cancel := context.WithTimeout(ctx, h.fetchTimeout)
 	defer cancel()
-	keySet, err := jwk.Fetch(ctx, h.jwksURI)
+	keySet, err := jwk.Fetch(ctx, h.jwksURI, jwk.WithHTTPClient(h.httpClient))
 	if err != nil {
 		return nil, fmt.Errorf("unable to fetch keys from %q: %v", h.jwksURI, err)
 	}
