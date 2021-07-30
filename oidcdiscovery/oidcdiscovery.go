@@ -136,6 +136,21 @@ func newHandler(opts Options) *handler {
 		disableKeyID:      opts.DisableKeyID,
 	}
 
+	if h.issuer == "" {
+		panic("oidc discovery: issuer is empty")
+	}
+	if h.discoveryUri == "" {
+		h.discoveryUri = getDiscoveryUriFromIssuer(h.issuer)
+	}
+	if h.jwksFetchTimeout == 0 {
+		h.jwksFetchTimeout = 5 * time.Second
+	}
+	if h.jwksRateLimit == 0 {
+		h.jwksRateLimit = 1
+	}
+	if h.allowedTokenDrift == 0 {
+		h.allowedTokenDrift = 10 * time.Second
+	}
 	err := h.loadJwks()
 	if err != nil {
 		if !opts.LazyLoadJwks {
@@ -149,27 +164,12 @@ func newHandler(opts Options) *handler {
 }
 
 func (h *handler) loadJwks() error {
-	if h.issuer == "" {
-		return fmt.Errorf("issuer is empty")
-	}
-	if h.discoveryUri == "" {
-		h.discoveryUri = getDiscoveryUriFromIssuer(h.issuer)
-	}
 	if h.jwksUri == "" {
 		jwksUri, err := getJwksUriFromDiscoveryUri(h.discoveryUri, 5*time.Second)
 		if err != nil {
 			return fmt.Errorf("unable to fetch jwksUri from discoveryUri (%s): %w", h.discoveryUri, err)
 		}
 		h.jwksUri = jwksUri
-	}
-	if h.jwksFetchTimeout == 0 {
-		h.jwksFetchTimeout = 5 * time.Second
-	}
-	if h.jwksRateLimit == 0 {
-		h.jwksRateLimit = 1
-	}
-	if h.allowedTokenDrift == 0 {
-		h.allowedTokenDrift = 10 * time.Second
 	}
 
 	keyHandler, err := newKeyHandler(h.jwksUri, h.jwksFetchTimeout, h.jwksRateLimit, h.disableKeyID)
