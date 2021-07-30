@@ -80,24 +80,29 @@ func (h *keyHandler) waitForUpdateKeySet(ctx context.Context) (jwk.Set, error) {
 		_ = h.keyUpdateLimiter.Take()
 		keySet, err := h.updateKeySet(ctx)
 
-		k := keyUpdate{
+		result := keyUpdate{
 			keySet,
 			err,
 		}
 
-		// for each request waiting for update, send result to them
-		for {
-			select {
-			case h.keyUpdateChannel <- k:
-			default:
-				return keySet, err
+		// start go routine to handle all requests waiting for result
+		go func(res keyUpdate) {
+			// for each request waiting for update, send result to them
+			for {
+				select {
+				case h.keyUpdateChannel <- res:
+				default:
+					return
+				}
 			}
-		}
+		}(result)
+
+		return keySet, err
 	}
 
 	// wait for the request that is updating keys and return the result from it
-	k := <-h.keyUpdateChannel
-	return k.keySet, k.err
+	result := <-h.keyUpdateChannel
+	return result.keySet, result.err
 }
 
 func (h *keyHandler) waitForUpdateKey(ctx context.Context) (jwk.Key, error) {
