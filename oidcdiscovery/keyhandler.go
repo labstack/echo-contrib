@@ -120,7 +120,6 @@ func (h *keyHandler) getKey(ctx context.Context, keyID string) (jwk.Key, error) 
 	}
 
 	return h.getKeyFromID(ctx, keyID)
-
 }
 
 func (h *keyHandler) getKeySet() jwk.Set {
