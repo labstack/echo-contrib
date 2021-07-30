@@ -221,7 +221,7 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 	token, err := getAndValidateTokenFromString(auth, key, h.disableKeyID)
 	if err != nil {
 		if h.disableKeyID && errors.Is(err, errSignatureVerification) {
-			updatedKey, err := h.keyHandler.waitForUpdateKey(ctx)
+			updatedKey, err := h.keyHandler.waitForUpdateKeySetAndGetKey(ctx)
 			if err != nil {
 				return nil, err
 			}

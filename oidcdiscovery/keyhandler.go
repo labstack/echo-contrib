@@ -71,8 +71,8 @@ func (h *keyHandler) updateKeySet(ctx context.Context) (jwk.Set, error) {
 	return keySet, nil
 }
 
-// waitForUpdateKeySet handles concurrent requests to update the jwks as well as rate limiting
-func (h *keyHandler) waitForUpdateKeySet(ctx context.Context) (jwk.Set, error) {
+// waitForUpdateKeySetSet handles concurrent requests to update the jwks as well as rate limiting
+func (h *keyHandler) waitForUpdateKeySetAndGetKeySet(ctx context.Context) (jwk.Set, error) {
 	// ok will be false if there's already an update in progress
 	ok := h.keyUpdateSemaphore.TryAcquire(1)
 	if ok {
@@ -105,8 +105,8 @@ func (h *keyHandler) waitForUpdateKeySet(ctx context.Context) (jwk.Set, error) {
 	return result.keySet, result.err
 }
 
-func (h *keyHandler) waitForUpdateKey(ctx context.Context) (jwk.Key, error) {
-	keySet, err := h.waitForUpdateKeySet(ctx)
+func (h *keyHandler) waitForUpdateKeySetAndGetKey(ctx context.Context) (jwk.Key, error) {
+	keySet, err := h.waitForUpdateKeySetAndGetKeySet(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -121,7 +121,7 @@ func (h *keyHandler) waitForUpdateKey(ctx context.Context) (jwk.Key, error) {
 
 func (h *keyHandler) getKey(ctx context.Context, keyID string) (jwk.Key, error) {
 	if h.disableKeyID {
-		return h.getDefaultKey()
+		return h.getKeyWithoutKeyID()
 	}
 
 	return h.getKeyFromID(ctx, keyID)
@@ -139,7 +139,7 @@ func (h *keyHandler) getKeyFromID(ctx context.Context, keyID string) (jwk.Key, e
 	key, found := keySet.LookupKeyID(keyID)
 
 	if !found {
-		updatedKeySet, err := h.waitForUpdateKeySet(ctx)
+		updatedKeySet, err := h.waitForUpdateKeySetAndGetKeySet(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("unable to update key set for key %q: %v", keyID, err)
 		}
@@ -155,7 +155,7 @@ func (h *keyHandler) getKeyFromID(ctx context.Context, keyID string) (jwk.Key, e
 	return key, nil
 }
 
-func (h *keyHandler) getDefaultKey() (jwk.Key, error) {
+func (h *keyHandler) getKeyWithoutKeyID() (jwk.Key, error) {
 	keySet := h.getKeySet()
 
 	key, found := keySet.Get(0)

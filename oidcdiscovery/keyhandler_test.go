@@ -96,7 +96,7 @@ func TestUpdate(t *testing.T) {
 
 	require.Equal(t, 1, keyHandler.keyUpdateCount)
 
-	_, err = keyHandler.waitForUpdateKeySet(ctx)
+	_, err = keyHandler.waitForUpdateKeySetAndGetKeySet(ctx)
 	require.NoError(t, err)
 
 	require.Equal(t, 2, keyHandler.keyUpdateCount)
@@ -110,7 +110,7 @@ func TestUpdate(t *testing.T) {
 			wg2.Add(1)
 			go func() {
 				wg1.Wait()
-				_, err := keyHandler.waitForUpdateKeySet(ctx)
+				_, err := keyHandler.waitForUpdateKeySetAndGetKeySet(ctx)
 				require.NoError(t, err)
 				wg2.Done()
 			}()
@@ -148,7 +148,7 @@ func TestUpdate(t *testing.T) {
 
 	// test rate limit
 	start := time.Now()
-	_, err = keyHandler.waitForUpdateKeySet(ctx)
+	_, err = keyHandler.waitForUpdateKeySetAndGetKeySet(ctx)
 	require.NoError(t, err)
 	stop := time.Now()
 	expectedStop := start.Add(time.Second / time.Duration(rateLimit))
@@ -240,7 +240,7 @@ func TestUpdateKeySetWithKeyIDEnabled(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestWaitForUpdateKeyWithKeyIDDisabled(t *testing.T) {
+func TestwaitForUpdateKeySetWithKeyIDDisabled(t *testing.T) {
 	ctx := context.Background()
 
 	disableKeyID := true
@@ -254,16 +254,16 @@ func TestWaitForUpdateKeyWithKeyIDDisabled(t *testing.T) {
 	keyHandler, err := newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
-	_, err = keyHandler.waitForUpdateKey(ctx)
+	_, err = keyHandler.waitForUpdateKeySetAndGetKey(ctx)
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
 
-	_, err = keyHandler.waitForUpdateKey(ctx)
+	_, err = keyHandler.waitForUpdateKeySetAndGetKey(ctx)
 	require.Error(t, err)
 }
 
-func TestWaitForUpdateKeyWithKeyIDEnabled(t *testing.T) {
+func TestwaitForUpdateKeySetWithKeyIDEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	disableKeyID := false
@@ -277,12 +277,12 @@ func TestWaitForUpdateKeyWithKeyIDEnabled(t *testing.T) {
 	keyHandler, err := newKeyHandler(http.DefaultClient, testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
-	_, err = keyHandler.waitForUpdateKey(ctx)
+	_, err = keyHandler.waitForUpdateKeySetAndGetKey(ctx)
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
 
-	_, err = keyHandler.waitForUpdateKey(ctx)
+	_, err = keyHandler.waitForUpdateKeySetAndGetKey(ctx)
 	require.NoError(t, err)
 }
 
