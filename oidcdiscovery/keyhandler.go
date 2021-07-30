@@ -38,7 +38,9 @@ func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint
 		keyUpdateLimiter:   ratelimit.New(int(keyUpdateRPS)),
 	}
 
-	_, err := h.updateKeySet(context.Background())
+	ctx := context.Background()
+
+	_, err := h.updateKeySet(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -130,7 +132,7 @@ func (h *keyHandler) getByKeyID(ctx context.Context, keyID string) (jwk.Key, err
 	key, found := keySet.LookupKeyID(keyID)
 
 	if !found {
-		updatedKeySet, err := h.waitForUpdateKeySet(context.Background())
+		updatedKeySet, err := h.waitForUpdateKeySet(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("unable to update key set for key %q: %v", keyID, err)
 		}

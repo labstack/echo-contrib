@@ -181,6 +181,8 @@ func (h *handler) loadJwks() error {
 }
 
 func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
+	ctx := c.Request().Context()
+
 	if h.keyHandler == nil {
 		err := h.loadJwks()
 		if err != nil {
@@ -202,7 +204,7 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 		}
 	}
 
-	key, err := h.keyHandler.getKey(c.Request().Context(), keyID)
+	key, err := h.keyHandler.getKey(ctx, keyID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get public key: %w", err)
 	}
@@ -210,7 +212,7 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 	token, err := getAndValidateTokenFromString(auth, key, h.disableKeyID)
 	if err != nil {
 		if h.disableKeyID && errors.Is(err, errSignatureVerification) {
-			updatedKey, err := h.keyHandler.waitForUpdateKey(c.Request().Context())
+			updatedKey, err := h.keyHandler.waitForUpdateKey(ctx)
 			if err != nil {
 				return nil, err
 			}
@@ -240,7 +242,7 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 	}
 
 	if h.requiredClaims != nil {
-		tokenClaims, err := token.AsMap(c.Request().Context())
+		tokenClaims, err := token.AsMap(ctx)
 		if err != nil {
 			return nil, fmt.Errorf("unable to get token claims: %w", err)
 		}
