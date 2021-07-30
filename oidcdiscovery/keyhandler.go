@@ -119,7 +119,7 @@ func (h *keyHandler) getKey(ctx context.Context, keyID string) (jwk.Key, error) 
 		return h.getDefaultKey()
 	}
 
-	return h.getByKeyID(ctx, keyID)
+	return h.getKeyFromID(ctx, keyID)
 
 }
 
@@ -129,7 +129,7 @@ func (h *keyHandler) getKeySet() jwk.Set {
 	return h.keySet
 }
 
-func (h *keyHandler) getByKeyID(ctx context.Context, keyID string) (jwk.Key, error) {
+func (h *keyHandler) getKeyFromID(ctx context.Context, keyID string) (jwk.Key, error) {
 	keySet := h.getKeySet()
 
 	key, found := keySet.LookupKeyID(keyID)
