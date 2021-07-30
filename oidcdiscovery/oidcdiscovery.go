@@ -7,7 +7,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"os"
 	"strings"
 	"time"
 
@@ -151,12 +150,11 @@ func newHandler(opts Options) *handler {
 	if h.allowedTokenDrift == 0 {
 		h.allowedTokenDrift = 10 * time.Second
 	}
-	err := h.loadJwks()
-	if err != nil {
-		if !opts.LazyLoadJwks {
-			panic(fmt.Sprintf("echo: oidc discovery unable to load jwks: %v", err))
-		} else {
-			fmt.Fprintf(os.Stderr, "echo: oidc discovery unable to load jwks: %v", err)
+
+	if !opts.LazyLoadJwks {
+		err := h.loadJwks()
+		if err != nil {
+			panic(fmt.Sprintf("oidc discovery: unable to load jwks: %v", err))
 		}
 	}
 
