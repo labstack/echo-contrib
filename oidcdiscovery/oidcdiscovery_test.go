@@ -960,7 +960,7 @@ func TestGetAndValidateTokenFromString(t *testing.T) {
 	for i, c := range cases {
 		t.Logf("Test iteration %d: %s", i, c.testDescription)
 
-		token, err := getAndValidateTokenFromString(c.tokenString, c.key, keyHandler, false)
+		token, err := getAndValidateTokenFromString(c.tokenString, c.key, false)
 		if c.expectedError {
 			require.Error(t, err)
 		} else {
@@ -968,6 +968,321 @@ func TestGetAndValidateTokenFromString(t *testing.T) {
 			require.NotEmpty(t, token)
 		}
 	}
+}
+
+func TestParseToken(t *testing.T) {
+	keySets := testNewTestKeySet(t)
+	testServer := testNewJwksServer(t, keySets)
+	defer testServer.Close()
+
+	cases := []struct {
+		testDescription         string
+		options                 Options
+		numKeys                 int
+		customIssuer            string
+		customExpirationMinutes int
+		customClaims            map[string]string
+		expectedErrorContains   string
+	}{
+		{
+			testDescription: "successful parse with keyID, one key",
+			options: Options{
+				Issuer:        "http://foo.bar",
+				DiscoveryUri:  "http://foo.bar",
+				JwksUri:       testServer.URL,
+				DisableKeyID:  false,
+				JwksRateLimit: 100,
+			},
+			numKeys:               1,
+			expectedErrorContains: "",
+		},
+		{
+			testDescription: "successful parse without keyID, one key",
+			options: Options{
+				Issuer:        "http://foo.bar",
+				DiscoveryUri:  "http://foo.bar",
+				JwksUri:       testServer.URL,
+				DisableKeyID:  true,
+				JwksRateLimit: 100,
+			},
+			numKeys:               1,
+			expectedErrorContains: "",
+		},
+		{
+			testDescription: "successful parse with keyID, two keys",
+			options: Options{
+				Issuer:        "http://foo.bar",
+				DiscoveryUri:  "http://foo.bar",
+				JwksUri:       testServer.URL,
+				DisableKeyID:  false,
+				JwksRateLimit: 100,
+			},
+			numKeys:               2,
+			expectedErrorContains: "",
+		},
+		{
+			// without lazyLoad, New() panics
+			testDescription: "unsuccessful parse without keyID, two keys with lazyLoad",
+			options: Options{
+				Issuer:        "http://foo.bar",
+				DiscoveryUri:  "http://foo.bar",
+				JwksUri:       testServer.URL,
+				DisableKeyID:  true,
+				JwksRateLimit: 100,
+				LazyLoadJwks:  true,
+			},
+			numKeys:               2,
+			expectedErrorContains: "keyID is disabled, but received a keySet with more than one key",
+		},
+		{
+			testDescription: "wrong issuer, with keyID",
+			options: Options{
+				Issuer:       "http://foo.bar",
+				DiscoveryUri: "http://foo.bar",
+				JwksUri:      testServer.URL,
+				DisableKeyID: false,
+			},
+			numKeys:               1,
+			customIssuer:          "http://wrong.issuer",
+			expectedErrorContains: "required issuer \"http://foo.bar\" was not found",
+		},
+		{
+			testDescription: "wrong issuer, without keyID",
+			options: Options{
+				Issuer:       "http://foo.bar",
+				DiscoveryUri: "http://foo.bar",
+				JwksUri:      testServer.URL,
+				DisableKeyID: true,
+			},
+			numKeys:               1,
+			customIssuer:          "http://wrong.issuer",
+			expectedErrorContains: "required issuer \"http://foo.bar\" was not found",
+		},
+		{
+			testDescription: "expired token, with keyID",
+			options: Options{
+				Issuer:       "http://foo.bar",
+				DiscoveryUri: "http://foo.bar",
+				JwksUri:      testServer.URL,
+				DisableKeyID: false,
+			},
+			numKeys:                 1,
+			customExpirationMinutes: -1,
+			expectedErrorContains:   "token has expired",
+		},
+		{
+			testDescription: "expired token, without keyID",
+			options: Options{
+				Issuer:       "http://foo.bar",
+				DiscoveryUri: "http://foo.bar",
+				JwksUri:      testServer.URL,
+				DisableKeyID: true,
+			},
+			numKeys:                 1,
+			customExpirationMinutes: -1,
+			expectedErrorContains:   "token has expired",
+		},
+		{
+			testDescription: "correct requiredClaim",
+			options: Options{
+				Issuer:       "http://foo.bar",
+				DiscoveryUri: "http://foo.bar",
+				JwksUri:      testServer.URL,
+				RequiredClaims: map[string]interface{}{
+					"foo": "bar",
+				},
+				DisableKeyID: false,
+			},
+			numKeys:               1,
+			expectedErrorContains: "",
+		},
+		{
+			testDescription: "correct requiredClaim",
+			options: Options{
+				Issuer:       "http://foo.bar",
+				DiscoveryUri: "http://foo.bar",
+				JwksUri:      testServer.URL,
+				RequiredClaims: map[string]interface{}{
+					"foo": "bar",
+				},
+				DisableKeyID: false,
+			},
+			numKeys: 1,
+			customClaims: map[string]string{
+				"foo": "baz",
+			},
+			expectedErrorContains: "unable to validate required claims",
+		},
+	}
+
+	for i, c := range cases {
+		t.Logf("Test iteration %d: %s", i, c.testDescription)
+
+		keySets.setKeys(testNewKeySet(t, c.numKeys, c.options.DisableKeyID))
+
+		parseTokenFunc := New(c.options)
+
+		issuer := c.options.Issuer
+		if c.customIssuer != "" {
+			issuer = c.customIssuer
+		}
+
+		expirationMinutes := 1
+		if c.customExpirationMinutes != 0 {
+			expirationMinutes = c.customExpirationMinutes
+		}
+
+		customClaims := make(map[string]string)
+		customClaims["foo"] = "bar"
+		if c.customClaims != nil {
+			customClaims = c.customClaims
+		}
+
+		token := testNewCustomTokenString(t, keySets.privateKeySet, issuer, expirationMinutes, customClaims)
+
+		_, err := parseTokenFunc(token, testNewEchoContext(t))
+
+		if c.expectedErrorContains == "" {
+			require.NoError(t, err)
+		} else {
+			require.Contains(t, err.Error(), c.expectedErrorContains)
+		}
+	}
+}
+
+func TestParseTokenWithKeyID(t *testing.T) {
+	disableKeyID := false
+	keySets := testNewTestKeySet(t)
+	testServer := testNewJwksServer(t, keySets)
+	defer testServer.Close()
+
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	opts := Options{
+		Issuer:        "http://foo.bar",
+		DiscoveryUri:  "http://foo.bar",
+		JwksUri:       testServer.URL,
+		DisableKeyID:  disableKeyID,
+		JwksRateLimit: 100,
+	}
+
+	parseTokenFunc := New(opts)
+
+	// first token should succeed
+	token1 := testNewTokenString(t, keySets.privateKeySet)
+
+	_, err := parseTokenFunc(token1, testNewEchoContext(t))
+	require.NoError(t, err)
+
+	// second token should succeed, rotation successful
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	token2 := testNewTokenString(t, keySets.privateKeySet)
+
+	_, err = parseTokenFunc(token2, testNewEchoContext(t))
+	require.NoError(t, err)
+
+	// after rotation, first token should fail
+	_, err = parseTokenFunc(token1, testNewEchoContext(t))
+	require.Error(t, err)
+
+	// third token should succeed with two keys
+	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
+
+	token3 := testNewTokenString(t, keySets.privateKeySet)
+
+	_, err = parseTokenFunc(token3, testNewEchoContext(t))
+	require.NoError(t, err)
+
+	// fourth token should fail since they token doesn't contain keyID
+	keySets.setKeys(testNewKeySet(t, 1, true))
+
+	token4 := testNewTokenString(t, keySets.privateKeySet)
+
+	_, err = parseTokenFunc(token4, testNewEchoContext(t))
+	require.Error(t, err)
+
+	// fifth token should fail since it's the wrong key but correct keyID
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+	currentPrivateKey, found := keySets.privateKeySet.Get(0)
+	require.True(t, found)
+
+	currentKeyID := currentPrivateKey.KeyID()
+	invalidPrivKey, _ := testNewKey(t)
+
+	invalidPrivKey.Set(jwk.KeyIDKey, currentKeyID)
+	invalidKeySet := jwk.NewSet()
+	invalidKeySet.Add(invalidPrivKey)
+
+	token5 := testNewTokenString(t, invalidKeySet)
+
+	_, err = parseTokenFunc(token5, testNewEchoContext(t))
+	require.ErrorIs(t, err, errSignatureVerification)
+
+	// sixth token should fail since the jwks can't be refreshed
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	token6 := testNewTokenString(t, keySets.privateKeySet)
+
+	testServer.Close()
+
+	_, err = parseTokenFunc(token6, testNewEchoContext(t))
+	require.Error(t, err)
+}
+
+func TestParseTokenWithoutKeyID(t *testing.T) {
+	disableKeyID := true
+	keySets := testNewTestKeySet(t)
+	testServer := testNewJwksServer(t, keySets)
+	defer testServer.Close()
+
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	opts := Options{
+		Issuer:        "http://foo.bar",
+		DiscoveryUri:  "http://foo.bar",
+		JwksUri:       testServer.URL,
+		DisableKeyID:  disableKeyID,
+		JwksRateLimit: 100,
+	}
+
+	parseTokenFunc := New(opts)
+
+	// first token should succeed
+	token1 := testNewTokenString(t, keySets.privateKeySet)
+
+	_, err := parseTokenFunc(token1, testNewEchoContext(t))
+	require.NoError(t, err)
+
+	// second token should succeed, with key rotation
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	token2 := testNewTokenString(t, keySets.privateKeySet)
+
+	_, err = parseTokenFunc(token2, testNewEchoContext(t))
+	require.NoError(t, err)
+
+	// after rotation, first token should fail
+	_, err = parseTokenFunc(token1, testNewEchoContext(t))
+	require.Error(t, err)
+
+	// third token should fail since there are two keys present
+	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
+
+	token3 := testNewTokenString(t, keySets.privateKeySet)
+
+	_, err = parseTokenFunc(token3, testNewEchoContext(t))
+	require.Error(t, err)
+
+	// fourth token should fail since the jwks can't be refreshed
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	token4 := testNewTokenString(t, keySets.privateKeySet)
+
+	testServer.Close()
+
+	_, err = parseTokenFunc(token4, testNewEchoContext(t))
+	require.Error(t, err)
 }
 
 func TestGetAndValidateTokenFromStringWithKeyID(t *testing.T) {
@@ -981,35 +1296,22 @@ func TestGetAndValidateTokenFromStringWithKeyID(t *testing.T) {
 	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
-	newTokenString := func() string {
-		jwtToken := jwt.New()
-		jwtToken.Set("foo", "bar")
+	token1 := testNewTokenString(t, keySets.privateKeySet)
 
-		headers := jws.NewHeaders()
-		headers.Set(jws.TypeKey, "JWT")
-
-		privKey, found := keySets.privateKeySet.Get(0)
-		require.True(t, found)
-
-		tokenBytes, err := jwt.Sign(jwtToken, jwa.ES384, privKey, jwt.WithHeaders(headers))
-		require.NoError(t, err)
-
-		return string(tokenBytes)
-	}
-
-	token1 := newTokenString()
-	pubKey, err := getPublicKey(token1, keyHandler, disableKeyID)
+	keyID, err := getKeyIDFromTokenString(token1)
 	require.NoError(t, err)
 
-	_, err = getAndValidateTokenFromString(token1, pubKey, keyHandler, disableKeyID)
+	pubKey, err := keyHandler.getKey(keyID)
+	require.NoError(t, err)
+
+	_, err = getAndValidateTokenFromString(token1, pubKey, disableKeyID)
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
 
-	token2 := newTokenString()
+	token2 := testNewTokenString(t, keySets.privateKeySet)
 
-	// rotation of jwks should not be done inside the
-	_, err = getAndValidateTokenFromString(token2, pubKey, keyHandler, disableKeyID)
+	_, err = getAndValidateTokenFromString(token2, pubKey, disableKeyID)
 	require.Error(t, err)
 }
 
@@ -1023,43 +1325,20 @@ func TestGetAndValidateTokenFromStringWithoutKeyID(t *testing.T) {
 	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
-	newTokenString := func() string {
-		jwtToken := jwt.New()
-		jwtToken.Set("foo", "bar")
+	token1 := testNewTokenString(t, keySets.privateKeySet)
 
-		headers := jws.NewHeaders()
-		headers.Set(jws.TypeKey, "JWT")
-
-		privKey, found := keySets.privateKeySet.Get(0)
-		require.True(t, found)
-
-		tokenBytes, err := jwt.Sign(jwtToken, jwa.ES384, privKey, jwt.WithHeaders(headers))
-		require.NoError(t, err)
-
-		return string(tokenBytes)
-	}
-
-	token1 := newTokenString()
-	pubKey, err := getPublicKey(token1, keyHandler, disableKeyID)
+	pubKey, err := keyHandler.getKey("")
 	require.NoError(t, err)
 
-	_, err = getAndValidateTokenFromString(token1, pubKey, keyHandler, disableKeyID)
+	_, err = getAndValidateTokenFromString(token1, pubKey, disableKeyID)
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
 
-	token2 := newTokenString()
+	token2 := testNewTokenString(t, keySets.privateKeySet)
 
-	_, err = getAndValidateTokenFromString(token2, pubKey, keyHandler, disableKeyID)
-	require.NoError(t, err)
-
-	testServer.Close()
-	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
-
-	token3 := newTokenString()
-
-	_, err = getAndValidateTokenFromString(token3, pubKey, keyHandler, disableKeyID)
-	require.Error(t, err)
+	_, err = getAndValidateTokenFromString(token2, pubKey, disableKeyID)
+	require.ErrorIs(t, err, errSignatureVerification)
 }
 
 func TestIsRequiredClaimsValid(t *testing.T) {
@@ -1439,4 +1718,56 @@ func testNewKey(t testing.TB) (jwk.Key, jwk.Key) {
 	pubKey.Set(jwk.AlgorithmKey, jwa.ES384)
 
 	return key, pubKey
+}
+
+func testNewTokenString(t *testing.T, privKeySet jwk.Set) string {
+	t.Helper()
+
+	jwtToken := jwt.New()
+	jwtToken.Set(jwt.IssuerKey, "http://foo.bar")
+	jwtToken.Set(jwt.ExpirationKey, time.Now().Add(1*time.Minute).Unix())
+	jwtToken.Set("foo", "bar")
+
+	headers := jws.NewHeaders()
+	headers.Set(jws.TypeKey, "JWT")
+
+	privKey, found := privKeySet.Get(0)
+	require.True(t, found)
+
+	tokenBytes, err := jwt.Sign(jwtToken, jwa.ES384, privKey, jwt.WithHeaders(headers))
+	require.NoError(t, err)
+
+	return string(tokenBytes)
+}
+
+func testNewCustomTokenString(t *testing.T, privKeySet jwk.Set, issuer string, expirationMinutes int, customClaims map[string]string) string {
+	t.Helper()
+
+	jwtToken := jwt.New()
+	jwtToken.Set(jwt.IssuerKey, issuer)
+	jwtToken.Set(jwt.ExpirationKey, time.Now().Add(time.Duration(expirationMinutes)*time.Minute).Unix())
+
+	for k, v := range customClaims {
+		jwtToken.Set(k, v)
+	}
+
+	headers := jws.NewHeaders()
+	headers.Set(jws.TypeKey, "JWT")
+
+	privKey, found := privKeySet.Get(0)
+	require.True(t, found)
+
+	tokenBytes, err := jwt.Sign(jwtToken, jwa.ES384, privKey, jwt.WithHeaders(headers))
+	require.NoError(t, err)
+
+	return string(tokenBytes)
+}
+
+func testNewEchoContext(t *testing.T) echo.Context {
+	t.Helper()
+
+	e := echo.New()
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
+	rec := httptest.NewRecorder()
+	return e.NewContext(req, rec)
 }

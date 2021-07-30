@@ -91,6 +91,29 @@ func (h *keyHandler) waitForUpdateKeySet() (jwk.Set, error) {
 	return k.keySet, k.err
 }
 
+func (h *keyHandler) waitForUpdateKey() (jwk.Key, error) {
+	keySet, err := h.waitForUpdateKeySet()
+	if err != nil {
+		return nil, err
+	}
+
+	key, found := keySet.Get(0)
+	if !found {
+		return nil, fmt.Errorf("no key found")
+	}
+
+	return key, nil
+}
+
+func (h *keyHandler) getKey(keyID string) (jwk.Key, error) {
+	if h.disableKeyID {
+		return h.getDefaultKey()
+	}
+
+	return h.getByKeyID(keyID)
+
+}
+
 func (h *keyHandler) getKeySet() jwk.Set {
 	h.RLock()
 	defer h.RUnlock()
@@ -114,6 +137,17 @@ func (h *keyHandler) getByKeyID(keyID string) (jwk.Key, error) {
 		}
 
 		return updatedKey, nil
+	}
+
+	return key, nil
+}
+
+func (h *keyHandler) getDefaultKey() (jwk.Key, error) {
+	keySet := h.getKeySet()
+
+	key, found := keySet.Get(0)
+	if !found {
+		return nil, fmt.Errorf("no key found")
 	}
 
 	return key, nil

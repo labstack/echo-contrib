@@ -3,6 +3,7 @@ package oidcdiscovery
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"io"
 	"net/http"
@@ -92,6 +93,10 @@ type Options struct {
 	// validated due to invalid key. The JWKS fetch will fail if there's more than one key present.
 	DisableKeyID bool
 }
+
+var (
+	errSignatureVerification = fmt.Errorf("failed to verify signature")
+)
 
 // New returns an OpenID Connect (OIDC) discovery `ParseTokenFunc` to be used
 // with the `JWT` middleware.
@@ -190,14 +195,35 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 		return nil, fmt.Errorf("token type %q required", h.requiredTokenType)
 	}
 
-	key, err := getPublicKey(auth, h.keyHandler, h.disableKeyID)
+	keyID := ""
+	if !h.disableKeyID {
+		var err error
+		keyID, err = getKeyIDFromTokenString(auth)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	key, err := h.keyHandler.getKey(keyID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get public key: %w", err)
 	}
 
-	token, err := getAndValidateTokenFromString(auth, key, h.keyHandler, h.disableKeyID)
+	token, err := getAndValidateTokenFromString(auth, key, h.disableKeyID)
 	if err != nil {
-		return nil, err
+		if h.disableKeyID && errors.Is(err, errSignatureVerification) {
+			updatedKey, err := h.keyHandler.waitForUpdateKey()
+			if err != nil {
+				return nil, err
+			}
+
+			token, err = getAndValidateTokenFromString(auth, updatedKey, h.disableKeyID)
+			if err != nil {
+				return nil, err
+			}
+		} else {
+			return nil, err
+		}
 	}
 
 	validExpiration := isTokenExpirationValid(token.Expiration(), h.allowedTokenDrift)
@@ -386,70 +412,13 @@ func isRequiredClaimsValid(requiredClaims map[string]interface{}, tokenClaims ma
 	return nil
 }
 
-type keyIDGetter interface {
-	getByKeyID(keyID string) (jwk.Key, error)
-}
-
-type keySetGetter interface {
-	getKeySet() jwk.Set
-}
-
-type keyGetter interface {
-	keyIDGetter
-	keySetGetter
-}
-
-func getPublicKey(tokenString string, keyGetter keyGetter, disableKeyID bool) (jwk.Key, error) {
-	if disableKeyID {
-		return getPublicKeyWithoutKeyID(keyGetter)
-
-	}
-
-	return getPublicKeyWithKeyID(tokenString, keyGetter)
-}
-
-func getPublicKeyWithKeyID(tokenString string, keyIDGetter keyIDGetter) (jwk.Key, error) {
-	keyID, err := getKeyIDFromTokenString(tokenString)
-	if err != nil {
-		return nil, err
-	}
-
-	key, err := keyIDGetter.getByKeyID(keyID)
-	if err != nil {
-		return nil, err
-	}
-
-	return key, nil
-}
-
-func getPublicKeyWithoutKeyID(keySetGetter keySetGetter) (jwk.Key, error) {
-	keySet := keySetGetter.getKeySet()
-
-	key, found := keySet.Get(0)
-	if !found {
-		return nil, fmt.Errorf("no key found")
-	}
-
-	return key, nil
-}
-
-type keyUpdater interface {
-	waitForUpdateKeySet() (jwk.Set, error)
-}
-
-func getAndValidateTokenFromString(tokenString string, key jwk.Key, keyUpdater keyUpdater, disableKeyID bool) (jwt.Token, error) {
+func getAndValidateTokenFromString(tokenString string, key jwk.Key, disableKeyID bool) (jwt.Token, error) {
 	keySet := getKeySetFromKey(key)
 
 	token, err := jwt.ParseString(tokenString, jwt.WithKeySet(keySet), jwt.UseDefaultKey(disableKeyID))
 	if err != nil {
-		// if keyID is disabled and the signature verification fails, update jwks and try again
-		if disableKeyID && strings.Contains(err.Error(), "failed to verify signature") {
-			updatedKeySet, err := keyUpdater.waitForUpdateKeySet()
-			if err != nil {
-				return nil, err
-			}
-
-			return jwt.ParseString(tokenString, jwt.WithKeySet(updatedKeySet), jwt.UseDefaultKey(disableKeyID))
+		if strings.Contains(err.Error(), errSignatureVerification.Error()) {
+			return nil, errSignatureVerification
 		}
 
 		return nil, err

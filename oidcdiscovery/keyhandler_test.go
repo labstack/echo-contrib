@@ -231,6 +231,48 @@ func TestUpdateKeySetWithKeyIDEnabled(t *testing.T) {
 	require.NoError(t, err)
 }
 
+func TestWaitForUpdateKeyWithKeyIDDisabled(t *testing.T) {
+	disableKeyID := true
+	keySets := testNewTestKeySet(t)
+
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	testServer := testNewJwksServer(t, keySets)
+	defer testServer.Close()
+
+	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	require.NoError(t, err)
+
+	_, err = keyHandler.waitForUpdateKey()
+	require.NoError(t, err)
+
+	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
+
+	_, err = keyHandler.waitForUpdateKey()
+	require.Error(t, err)
+}
+
+func TestWaitForUpdateKeyWithKeyIDEnabled(t *testing.T) {
+	disableKeyID := false
+	keySets := testNewTestKeySet(t)
+
+	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
+
+	testServer := testNewJwksServer(t, keySets)
+	defer testServer.Close()
+
+	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
+	require.NoError(t, err)
+
+	_, err = keyHandler.waitForUpdateKey()
+	require.NoError(t, err)
+
+	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
+
+	_, err = keyHandler.waitForUpdateKey()
+	require.NoError(t, err)
+}
+
 func testNewJwksServer(t *testing.T, keySets *testKeySets) *httptest.Server {
 	t.Helper()
 
