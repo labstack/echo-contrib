@@ -66,7 +66,9 @@ func (h *keyHandler) updateKeySet(ctx context.Context) (jwk.Set, error) {
 	return keySet, nil
 }
 
+// waitForUpdateKeySet handles concurrent requests to update the jwks as well as rate limiting
 func (h *keyHandler) waitForUpdateKeySet(ctx context.Context) (jwk.Set, error) {
+	// ok will be false if there's already an update in progress
 	ok := h.keyUpdateSemaphore.TryAcquire(1)
 	if ok {
 		defer h.keyUpdateSemaphore.Release(1)
@@ -78,6 +80,7 @@ func (h *keyHandler) waitForUpdateKeySet(ctx context.Context) (jwk.Set, error) {
 			err,
 		}
 
+		// for each request waiting for update, send result to them
 		for {
 			select {
 			case h.keyUpdateChannel <- k:
@@ -87,6 +90,7 @@ func (h *keyHandler) waitForUpdateKeySet(ctx context.Context) (jwk.Set, error) {
 		}
 	}
 
+	// wait for the request that is updating keys and return the result from it
 	k := <-h.keyUpdateChannel
 	return k.keySet, k.err
 }
