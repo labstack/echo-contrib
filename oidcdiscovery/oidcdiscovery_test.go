@@ -1301,7 +1301,7 @@ func TestGetAndValidateTokenFromStringWithKeyID(t *testing.T) {
 	keyID, err := getKeyIDFromTokenString(token1)
 	require.NoError(t, err)
 
-	pubKey, err := keyHandler.getKey(keyID)
+	pubKey, err := keyHandler.getKey(context.Background(), keyID)
 	require.NoError(t, err)
 
 	_, err = getAndValidateTokenFromString(token1, pubKey, disableKeyID)
@@ -1327,7 +1327,7 @@ func TestGetAndValidateTokenFromStringWithoutKeyID(t *testing.T) {
 
 	token1 := testNewTokenString(t, keySets.privateKeySet)
 
-	pubKey, err := keyHandler.getKey("")
+	pubKey, err := keyHandler.getKey(context.Background(), "")
 	require.NoError(t, err)
 
 	_, err = getAndValidateTokenFromString(token1, pubKey, disableKeyID)

@@ -1,6 +1,7 @@
 package oidcdiscovery
 
 import (
+	"context"
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
@@ -34,12 +35,12 @@ func TestNewKeyHandler(t *testing.T) {
 	require.NoError(t, err)
 
 	// Test valid key id
-	key1, err := keyHandler.getByKeyID(keyID1)
+	key1, err := keyHandler.getByKeyID(context.Background(), keyID1)
 	require.NoError(t, err)
 	require.Equal(t, expectedKey1, key1)
 
 	// Test invalid key id
-	_, err = keyHandler.getByKeyID("foo")
+	_, err = keyHandler.getByKeyID(context.Background(), "foo")
 	require.Error(t, err)
 
 	// Test with rotated keys
@@ -49,7 +50,7 @@ func TestNewKeyHandler(t *testing.T) {
 	keyID2, err := getKeyIDFromTokenString(token2.AccessToken)
 	require.NoError(t, err)
 
-	key2, err := keyHandler.getByKeyID(keyID2)
+	key2, err := keyHandler.getByKeyID(context.Background(), keyID2)
 	require.NoError(t, err)
 
 	keySet2 := keyHandler.getKeySet()
@@ -74,7 +75,7 @@ func TestNewKeyHandler(t *testing.T) {
 	keyID3, err := getKeyIDFromTokenString(token3.AccessToken)
 	require.NoError(t, err)
 	op.Close(t)
-	_, err = keyHandler.getByKeyID(keyID3)
+	_, err = keyHandler.getByKeyID(context.Background(), keyID3)
 	require.Error(t, err)
 }
 
@@ -91,7 +92,7 @@ func TestUpdate(t *testing.T) {
 
 	require.Equal(t, 1, keyHandler.keyUpdateCount)
 
-	_, err = keyHandler.waitForUpdateKeySet()
+	_, err = keyHandler.waitForUpdateKeySet(context.Background())
 	require.NoError(t, err)
 
 	require.Equal(t, 2, keyHandler.keyUpdateCount)
@@ -105,7 +106,7 @@ func TestUpdate(t *testing.T) {
 			wg2.Add(1)
 			go func() {
 				wg1.Wait()
-				_, err := keyHandler.waitForUpdateKeySet()
+				_, err := keyHandler.waitForUpdateKeySet(context.Background())
 				require.NoError(t, err)
 				wg2.Done()
 			}()
@@ -143,7 +144,7 @@ func TestUpdate(t *testing.T) {
 
 	// test rate limit
 	start := time.Now()
-	_, err = keyHandler.waitForUpdateKeySet()
+	_, err = keyHandler.waitForUpdateKeySet(context.Background())
 	require.NoError(t, err)
 	stop := time.Now()
 	expectedStop := start.Add(time.Second / time.Duration(rateLimit))
@@ -201,12 +202,12 @@ func TestUpdateKeySetWithKeyIDDisabled(t *testing.T) {
 	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
-	_, err = keyHandler.updateKeySet()
+	_, err = keyHandler.updateKeySet(context.Background())
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
 
-	_, err = keyHandler.updateKeySet()
+	_, err = keyHandler.updateKeySet(context.Background())
 	require.Error(t, err)
 }
 
@@ -222,12 +223,12 @@ func TestUpdateKeySetWithKeyIDEnabled(t *testing.T) {
 	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
-	_, err = keyHandler.updateKeySet()
+	_, err = keyHandler.updateKeySet(context.Background())
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
 
-	_, err = keyHandler.updateKeySet()
+	_, err = keyHandler.updateKeySet(context.Background())
 	require.NoError(t, err)
 }
 
@@ -243,12 +244,12 @@ func TestWaitForUpdateKeyWithKeyIDDisabled(t *testing.T) {
 	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
-	_, err = keyHandler.waitForUpdateKey()
+	_, err = keyHandler.waitForUpdateKey(context.Background())
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
 
-	_, err = keyHandler.waitForUpdateKey()
+	_, err = keyHandler.waitForUpdateKey(context.Background())
 	require.Error(t, err)
 }
 
@@ -264,12 +265,12 @@ func TestWaitForUpdateKeyWithKeyIDEnabled(t *testing.T) {
 	keyHandler, err := newKeyHandler(testServer.URL, 10*time.Millisecond, 100, disableKeyID)
 	require.NoError(t, err)
 
-	_, err = keyHandler.waitForUpdateKey()
+	_, err = keyHandler.waitForUpdateKey(context.Background())
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 2, disableKeyID))
 
-	_, err = keyHandler.waitForUpdateKey()
+	_, err = keyHandler.waitForUpdateKey(context.Background())
 	require.NoError(t, err)
 }
 

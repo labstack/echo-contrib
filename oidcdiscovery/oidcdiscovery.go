@@ -204,7 +204,7 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 		}
 	}
 
-	key, err := h.keyHandler.getKey(keyID)
+	key, err := h.keyHandler.getKey(c.Request().Context(), keyID)
 	if err != nil {
 		return nil, fmt.Errorf("unable to get public key: %w", err)
 	}
@@ -212,7 +212,7 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 	token, err := getAndValidateTokenFromString(auth, key, h.disableKeyID)
 	if err != nil {
 		if h.disableKeyID && errors.Is(err, errSignatureVerification) {
-			updatedKey, err := h.keyHandler.waitForUpdateKey()
+			updatedKey, err := h.keyHandler.waitForUpdateKey(c.Request().Context())
 			if err != nil {
 				return nil, err
 			}

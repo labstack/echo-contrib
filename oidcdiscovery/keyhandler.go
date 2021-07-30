@@ -38,7 +38,7 @@ func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint
 		keyUpdateLimiter:   ratelimit.New(int(keyUpdateRPS)),
 	}
 
-	_, err := h.updateKeySet()
+	_, err := h.updateKeySet(context.Background())
 	if err != nil {
 		return nil, err
 	}
@@ -46,8 +46,8 @@ func newKeyHandler(jwksUri string, fetchTimeout time.Duration, keyUpdateRPS uint
 	return h, nil
 }
 
-func (h *keyHandler) updateKeySet() (jwk.Set, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), h.fetchTimeout)
+func (h *keyHandler) updateKeySet(ctx context.Context) (jwk.Set, error) {
+	ctx, cancel := context.WithTimeout(ctx, h.fetchTimeout)
 	defer cancel()
 	keySet, err := jwk.Fetch(ctx, h.jwksURI)
 	if err != nil {
@@ -66,12 +66,12 @@ func (h *keyHandler) updateKeySet() (jwk.Set, error) {
 	return keySet, nil
 }
 
-func (h *keyHandler) waitForUpdateKeySet() (jwk.Set, error) {
+func (h *keyHandler) waitForUpdateKeySet(ctx context.Context) (jwk.Set, error) {
 	ok := h.keyUpdateSemaphore.TryAcquire(1)
 	if ok {
 		defer h.keyUpdateSemaphore.Release(1)
 		_ = h.keyUpdateLimiter.Take()
-		keySet, err := h.updateKeySet()
+		keySet, err := h.updateKeySet(ctx)
 
 		k := keyUpdate{
 			keySet,
@@ -91,8 +91,8 @@ func (h *keyHandler) waitForUpdateKeySet() (jwk.Set, error) {
 	return k.keySet, k.err
 }
 
-func (h *keyHandler) waitForUpdateKey() (jwk.Key, error) {
-	keySet, err := h.waitForUpdateKeySet()
+func (h *keyHandler) waitForUpdateKey(ctx context.Context) (jwk.Key, error) {
+	keySet, err := h.waitForUpdateKeySet(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -105,12 +105,12 @@ func (h *keyHandler) waitForUpdateKey() (jwk.Key, error) {
 	return key, nil
 }
 
-func (h *keyHandler) getKey(keyID string) (jwk.Key, error) {
+func (h *keyHandler) getKey(ctx context.Context, keyID string) (jwk.Key, error) {
 	if h.disableKeyID {
 		return h.getDefaultKey()
 	}
 
-	return h.getByKeyID(keyID)
+	return h.getByKeyID(ctx, keyID)
 
 }
 
@@ -120,13 +120,13 @@ func (h *keyHandler) getKeySet() jwk.Set {
 	return h.keySet
 }
 
-func (h *keyHandler) getByKeyID(keyID string) (jwk.Key, error) {
+func (h *keyHandler) getByKeyID(ctx context.Context, keyID string) (jwk.Key, error) {
 	keySet := h.getKeySet()
 
 	key, found := keySet.LookupKeyID(keyID)
 
 	if !found {
-		updatedKeySet, err := h.waitForUpdateKeySet()
+		updatedKeySet, err := h.waitForUpdateKeySet(context.Background())
 		if err != nil {
 			return nil, fmt.Errorf("unable to update key set for key %q: %v", keyID, err)
 		}
