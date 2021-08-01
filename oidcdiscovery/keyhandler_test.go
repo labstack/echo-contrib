@@ -240,7 +240,7 @@ func TestUpdateKeySetWithKeyIDEnabled(t *testing.T) {
 	require.NoError(t, err)
 }
 
-func TestwaitForUpdateKeySetWithKeyIDDisabled(t *testing.T) {
+func TestWaitForUpdateKeySetWithKeyIDDisabled(t *testing.T) {
 	ctx := context.Background()
 
 	disableKeyID := true
@@ -263,7 +263,7 @@ func TestwaitForUpdateKeySetWithKeyIDDisabled(t *testing.T) {
 	require.Error(t, err)
 }
 
-func TestwaitForUpdateKeySetWithKeyIDEnabled(t *testing.T) {
+func TestWaitForUpdateKeySetWithKeyIDEnabled(t *testing.T) {
 	ctx := context.Background()
 
 	disableKeyID := false
