@@ -105,7 +105,10 @@ var (
 // with the `JWT` middleware.
 // See: https://openid.net/connect/
 func New(opts Options) func(auth string, c echo.Context) (interface{}, error) {
-	h := newHandler(opts)
+	h, err := newHandler(opts)
+	if err != nil {
+		panic(fmt.Sprintf("oidc discovery: %v", err))
+	}
 
 	return h.parseToken
 }
@@ -126,7 +129,7 @@ type handler struct {
 	keyHandler *keyHandler
 }
 
-func newHandler(opts Options) *handler {
+func newHandler(opts Options) (*handler, error) {
 	h := &handler{
 		issuer:            opts.Issuer,
 		discoveryUri:      opts.DiscoveryUri,
@@ -142,7 +145,7 @@ func newHandler(opts Options) *handler {
 	}
 
 	if h.issuer == "" {
-		panic("oidc discovery: issuer is empty")
+		return nil, fmt.Errorf("issuer is empty")
 	}
 	if h.discoveryUri == "" {
 		h.discoveryUri = getDiscoveryUriFromIssuer(h.issuer)
@@ -163,11 +166,11 @@ func newHandler(opts Options) *handler {
 	if !opts.LazyLoadJwks {
 		err := h.loadJwks()
 		if err != nil {
-			panic(fmt.Sprintf("oidc discovery: unable to load jwks: %v", err))
+			return nil, fmt.Errorf("unable to load jwks: %w", err)
 		}
 	}
 
-	return h
+	return h, nil
 }
 
 func (h *handler) loadJwks() error {

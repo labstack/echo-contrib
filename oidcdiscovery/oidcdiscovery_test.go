@@ -225,12 +225,13 @@ func TestHandlerLazyLoad(t *testing.T) {
 
 	handler := testGetEchoHandler(t)
 
-	oidcDiscoveryHandler := newHandler(Options{
+	oidcDiscoveryHandler, err := newHandler(Options{
 		Issuer:            "http://foo.bar/baz",
 		RequiredAudience:  "test-client",
 		RequiredTokenType: "JWT+AT",
 		LazyLoadJwks:      true,
 	})
+	require.NoError(t, err)
 
 	e := echo.New()
 	h := middleware.JWTWithConfig(middleware.JWTConfig{
@@ -242,7 +243,7 @@ func TestHandlerLazyLoad(t *testing.T) {
 	recNoAuth := httptest.NewRecorder()
 	cNoAuth := e.NewContext(reqNoAuth, recNoAuth)
 
-	err := h(cNoAuth)
+	err = h(cNoAuth)
 	require.Error(t, err)
 
 	// Test with authentication
