@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/labstack/echo/v4"
+	"github.com/lestrrat-go/jwx/jwa"
 	"github.com/lestrrat-go/jwx/jwk"
 	"github.com/lestrrat-go/jwx/jws"
 	"github.com/lestrrat-go/jwx/jwt"
@@ -38,6 +39,16 @@ type Options struct {
 	// Defaults to 1 (Request Per Second)
 	// Please observe: Requests that force update of jwks (like wrong keyID) will be rate limited
 	JwksRateLimit uint
+
+	// FallbackSignatureAlgorithm needs to be used when the jwks doesn't contain the alg key.
+	// If not specified and jwks doesn't contain alg key, will default to:
+	// - RS256 for key type (kty) RSA
+	// - ES256 for key type (kty) EC
+	//
+	// When specified and jwks contains alg key, alg key from jwks will be used.
+	//
+	// Example values (one of them): RS256 RS384 RS512 ES256 ES384 ES512
+	FallbackSignatureAlgorithm string
 
 	// AllowedTokenDrift adds the duration to the token expiration to allow
 	// for time drift between parties.
@@ -114,17 +125,18 @@ func New(opts Options) func(auth string, c echo.Context) (interface{}, error) {
 }
 
 type handler struct {
-	issuer            string
-	discoveryUri      string
-	jwksUri           string
-	jwksFetchTimeout  time.Duration
-	jwksRateLimit     uint
-	allowedTokenDrift time.Duration
-	requiredAudience  string
-	requiredTokenType string
-	requiredClaims    map[string]interface{}
-	disableKeyID      bool
-	httpClient        *http.Client
+	issuer                     string
+	discoveryUri               string
+	jwksUri                    string
+	jwksFetchTimeout           time.Duration
+	jwksRateLimit              uint
+	fallbackSignatureAlgorithm jwa.SignatureAlgorithm
+	allowedTokenDrift          time.Duration
+	requiredAudience           string
+	requiredTokenType          string
+	requiredClaims             map[string]interface{}
+	disableKeyID               bool
+	httpClient                 *http.Client
 
 	keyHandler *keyHandler
 }
@@ -155,6 +167,14 @@ func newHandler(opts Options) (*handler, error) {
 	}
 	if h.jwksRateLimit == 0 {
 		h.jwksRateLimit = 1
+	}
+	if opts.FallbackSignatureAlgorithm != "" {
+		alg, err := getSignatureAlgorithmFromString(opts.FallbackSignatureAlgorithm)
+		if err != nil {
+			return nil, fmt.Errorf("FallbackSignatureAlgorithm not accepted: %w", err)
+		}
+
+		h.fallbackSignatureAlgorithm = alg
 	}
 	if h.allowedTokenDrift == 0 {
 		h.allowedTokenDrift = 10 * time.Second
@@ -221,7 +241,12 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 		return nil, fmt.Errorf("unable to get public key: %w", err)
 	}
 
-	token, err := getAndValidateTokenFromString(auth, key, h.disableKeyID)
+	alg, err := getSignatureAlgorithm(key.KeyType(), key.Algorithm(), h.fallbackSignatureAlgorithm)
+	if err != nil {
+		return nil, err
+	}
+
+	token, err := getAndValidateTokenFromString(auth, key, alg)
 	if err != nil {
 		if h.disableKeyID && errors.Is(err, errSignatureVerification) {
 			updatedKey, err := h.keyHandler.waitForUpdateKeySetAndGetKey(ctx)
@@ -229,7 +254,12 @@ func (h *handler) parseToken(auth string, c echo.Context) (interface{}, error) {
 				return nil, err
 			}
 
-			token, err = getAndValidateTokenFromString(auth, updatedKey, h.disableKeyID)
+			alg, err := getSignatureAlgorithm(key.KeyType(), key.Algorithm(), h.fallbackSignatureAlgorithm)
+			if err != nil {
+				return nil, err
+			}
+
+			token, err = getAndValidateTokenFromString(auth, updatedKey, alg)
 			if err != nil {
 				return nil, err
 			}
@@ -424,10 +454,8 @@ func isRequiredClaimsValid(requiredClaims map[string]interface{}, tokenClaims ma
 	return nil
 }
 
-func getAndValidateTokenFromString(tokenString string, key jwk.Key, disableKeyID bool) (jwt.Token, error) {
-	keySet := getKeySetFromKey(key)
-
-	token, err := jwt.ParseString(tokenString, jwt.WithKeySet(keySet), jwt.UseDefaultKey(disableKeyID))
+func getAndValidateTokenFromString(tokenString string, key jwk.Key, alg jwa.SignatureAlgorithm) (jwt.Token, error) {
+	token, err := jwt.ParseString(tokenString, jwt.WithVerify(alg, key))
 	if err != nil {
 		if strings.Contains(err.Error(), errSignatureVerification.Error()) {
 			return nil, errSignatureVerification
@@ -439,9 +467,31 @@ func getAndValidateTokenFromString(tokenString string, key jwk.Key, disableKeyID
 	return token, nil
 }
 
-func getKeySetFromKey(key jwk.Key) jwk.Set {
-	keySet := jwk.NewSet()
-	keySet.Add(key)
+func getSignatureAlgorithm(kty jwa.KeyType, keyAlg string, fallbackAlg jwa.SignatureAlgorithm) (jwa.SignatureAlgorithm, error) {
+	if keyAlg != "" {
+		return getSignatureAlgorithmFromString(keyAlg)
+	}
 
-	return keySet
+	if fallbackAlg != "" {
+		return fallbackAlg, nil
+	}
+
+	switch kty {
+	case jwa.RSA:
+		return jwa.RS256, nil
+	case jwa.EC:
+		return jwa.ES256, nil
+	}
+
+	return "", fmt.Errorf("unable to get signature algorithm with kty=%s, alg=%s, fallbackAlg=%s", kty, keyAlg, fallbackAlg)
+}
+
+func getSignatureAlgorithmFromString(s string) (jwa.SignatureAlgorithm, error) {
+	var alg jwa.SignatureAlgorithm
+	err := alg.Accept(s)
+	if err != nil {
+		return "", err
+	}
+
+	return alg, nil
 }

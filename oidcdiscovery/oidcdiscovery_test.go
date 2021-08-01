@@ -464,6 +464,22 @@ func TestNew(t *testing.T) {
 			},
 			expectPanic: false,
 		},
+		{
+			testDescription: "valid signature algorithm doesn't panic",
+			config: Options{
+				Issuer:                     op.GetURL(t),
+				FallbackSignatureAlgorithm: "RS256",
+			},
+			expectPanic: false,
+		},
+		{
+			testDescription: "invalid signature algorithm panics",
+			config: Options{
+				Issuer:                     op.GetURL(t),
+				FallbackSignatureAlgorithm: "foobar",
+			},
+			expectPanic: true,
+		},
 	}
 
 	for i, c := range cases {
@@ -961,7 +977,10 @@ func TestGetAndValidateTokenFromString(t *testing.T) {
 	for i, c := range cases {
 		t.Logf("Test iteration %d: %s", i, c.testDescription)
 
-		token, err := getAndValidateTokenFromString(c.tokenString, c.key, false)
+		alg, err := getSignatureAlgorithm(c.key.KeyType(), c.key.Algorithm(), jwa.ES384)
+		require.NoError(t, err)
+
+		token, err := getAndValidateTokenFromString(c.tokenString, c.key, alg)
 		if c.expectedError {
 			require.Error(t, err)
 		} else {
@@ -1305,14 +1324,17 @@ func TestGetAndValidateTokenFromStringWithKeyID(t *testing.T) {
 	pubKey, err := keyHandler.getKey(context.Background(), keyID)
 	require.NoError(t, err)
 
-	_, err = getAndValidateTokenFromString(token1, pubKey, disableKeyID)
+	alg, err := getSignatureAlgorithm(pubKey.KeyType(), pubKey.Algorithm(), jwa.ES384)
+	require.NoError(t, err)
+
+	_, err = getAndValidateTokenFromString(token1, pubKey, alg)
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
 
 	token2 := testNewTokenString(t, keySets.privateKeySet)
 
-	_, err = getAndValidateTokenFromString(token2, pubKey, disableKeyID)
+	_, err = getAndValidateTokenFromString(token2, pubKey, alg)
 	require.Error(t, err)
 }
 
@@ -1331,14 +1353,17 @@ func TestGetAndValidateTokenFromStringWithoutKeyID(t *testing.T) {
 	pubKey, err := keyHandler.getKey(context.Background(), "")
 	require.NoError(t, err)
 
-	_, err = getAndValidateTokenFromString(token1, pubKey, disableKeyID)
+	alg, err := getSignatureAlgorithm(pubKey.KeyType(), pubKey.Algorithm(), jwa.ES384)
+	require.NoError(t, err)
+
+	_, err = getAndValidateTokenFromString(token1, pubKey, alg)
 	require.NoError(t, err)
 
 	keySets.setKeys(testNewKeySet(t, 1, disableKeyID))
 
 	token2 := testNewTokenString(t, keySets.privateKeySet)
 
-	_, err = getAndValidateTokenFromString(token2, pubKey, disableKeyID)
+	_, err = getAndValidateTokenFromString(token2, pubKey, alg)
 	require.ErrorIs(t, err, errSignatureVerification)
 }
 
@@ -1687,6 +1712,86 @@ func TestIsRequiredClaimsValid(t *testing.T) {
 		if c.expectedResult {
 			require.NoError(t, err)
 
+		} else {
+			require.Error(t, err)
+		}
+	}
+}
+
+func TestGetSignatureAlgorithm(t *testing.T) {
+	cases := []struct {
+		inputKty         jwa.KeyType
+		inputAlg         string
+		inputFallbackAlg jwa.SignatureAlgorithm
+		expectedResult   jwa.SignatureAlgorithm
+		expectedError    bool
+	}{
+		{
+			inputKty:         jwa.RSA,
+			inputAlg:         "RS256",
+			inputFallbackAlg: "",
+			expectedResult:   jwa.RS256,
+			expectedError:    false,
+		},
+		{
+			inputKty:         jwa.EC,
+			inputAlg:         "ES256",
+			inputFallbackAlg: "",
+			expectedResult:   jwa.ES256,
+			expectedError:    false,
+		},
+		{
+			inputKty:         jwa.RSA,
+			inputAlg:         "",
+			inputFallbackAlg: "",
+			expectedResult:   jwa.RS256,
+			expectedError:    false,
+		},
+		{
+			inputKty:         jwa.EC,
+			inputAlg:         "",
+			inputFallbackAlg: "",
+			expectedResult:   jwa.ES256,
+			expectedError:    false,
+		},
+		{
+			inputKty:         "",
+			inputAlg:         "",
+			inputFallbackAlg: "",
+			expectedResult:   "",
+			expectedError:    true,
+		},
+		{
+			inputKty:         "",
+			inputAlg:         "foobar",
+			inputFallbackAlg: "",
+			expectedResult:   "",
+			expectedError:    true,
+		},
+		{
+			inputKty:         "",
+			inputAlg:         "",
+			inputFallbackAlg: jwa.ES384,
+			expectedResult:   jwa.ES384,
+			expectedError:    false,
+		},
+		{
+			inputKty:         jwa.RSA,
+			inputAlg:         "",
+			inputFallbackAlg: jwa.ES384,
+			expectedResult:   jwa.ES384,
+			expectedError:    false,
+		},
+	}
+
+	for i, c := range cases {
+		t.Logf("Test iteration %d: inputKty=%s, inputAlg=%s, inputFallbackAlg=%s", i, c.inputKty, c.inputAlg, c.inputFallbackAlg)
+
+		result, err := getSignatureAlgorithm(c.inputKty, c.inputAlg, c.inputFallbackAlg)
+		require.Equal(t, c.expectedResult, result)
+
+		if !c.expectedError {
+			require.NoError(t, err)
 		} else {
 			require.Error(t, err)
 		}
