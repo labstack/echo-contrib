@@ -6,6 +6,7 @@ require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.0 // indirect
 	github.com/appleboy/gofight/v2 v2.1.2
 	github.com/casbin/casbin/v2 v2.31.2
+	github.com/cristalhq/aconfig v0.16.2
 	github.com/gorilla/context v1.1.1
 	github.com/gorilla/sessions v1.2.1
 	github.com/labstack/echo/v4 v4.4.0
