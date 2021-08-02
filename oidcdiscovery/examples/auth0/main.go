@@ -41,6 +41,9 @@ func run(cfg config) error {
 			RequiredTokenType:          "JWT",
 			RequiredAudience:           cfg.Audience,
 			FallbackSignatureAlgorithm: cfg.FallbackSignatureAlgorithm,
+			RequiredClaims: map[string]interface{}{
+				"azp": cfg.ClientID,
+			},
 		}),
 	}))
 
@@ -69,6 +72,7 @@ type config struct {
 	Port                       int    `flag:"port" env:"PORT" default:"8080" usage:"port webserver will listen to"`
 	Issuer                     string `flag:"token-issuer" env:"TOKEN_ISSUER" usage:"the oidc issuer url for tokens"`
 	Audience                   string `flag:"token-audience" env:"TOKEN_AUDIENCE" usage:"the audience that tokens need to contain"`
+	ClientID                   string `flag:"client-id" env:"CLIENT_ID" usage:"the client id that tokens need to contain"`
 	FallbackSignatureAlgorithm string `flag:"fallback-signature-algorithm" env:"FALLBACK_SIGNATURE_ALGORITHM" default:"RS256" usage:"if the issue jwks doesn't contain key alg, use the following signature algorithm to verify the signature of the tokens"`
 }
 
