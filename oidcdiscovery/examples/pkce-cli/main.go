@@ -53,7 +53,7 @@ func run(cfg config) error {
 	callbackUrl := fmt.Sprintf("http://%s/callback", addr)
 	startUrl := fmt.Sprintf("http://%s/start", addr)
 
-	authzInfo, err := getAuthorizationInfo(callbackUrl, cfg.Issuer, cfg.ClientID, cfg.Scopes)
+	authzInfo, err := getAuthorizationInfo(callbackUrl, cfg.Issuer, cfg.ClientID, cfg.Scopes, cfg.ExtraAuthorizationParams)
 	if err != nil {
 		return err
 	}
@@ -101,15 +101,17 @@ func run(cfg config) error {
 	}
 
 	tokenCtx := context.Background()
-	return authzInfo.getAndPrintToken(tokenCtx)
+	return authzInfo.getAndPrintToken(tokenCtx, cfg.ExtraTokenParams)
 }
 
 type config struct {
-	Address  string `flag:"address" env:"ADDRESS" default:"localhost" usage:"address webserver will listen to"`
-	Port     int    `flag:"port" env:"PORT" default:"8080" usage:"port webserver will listen to"`
-	Issuer   string `flag:"issuer" env:"ISSUER" usage:"the oidc issuer to use for tokens"`
-	ClientID string `flag:"client-id" env:"CLIENT_ID" usage:"the client id to use"`
-	Scopes   string `flag:"scopes" env:"SCOPES" default:"openid profile" usage:"scopes to request from authorization server / openid provider"`
+	Address                  string            `flag:"address" env:"ADDRESS" default:"localhost" usage:"address webserver will listen to"`
+	Port                     int               `flag:"port" env:"PORT" default:"8080" usage:"port webserver will listen to"`
+	Issuer                   string            `flag:"issuer" env:"ISSUER" usage:"the oidc issuer to use for tokens"`
+	ClientID                 string            `flag:"client-id" env:"CLIENT_ID" usage:"the client id to use"`
+	Scopes                   string            `flag:"scopes" env:"SCOPES" default:"openid profile" usage:"scopes to request from authorization server / openid provider"`
+	ExtraAuthorizationParams map[string]string `flag:"extra-authz-params" env:"EXTRA_AUTHZ_PARAMS" usage:"additional query parameters to use with the authorization endpoint"`
+	ExtraTokenParams         map[string]string `flag:"extra-token-params" env:"EXTRA_TOKEN_PARAMS" usage:"additional query parameters to use with the token endpoint"`
 }
 
 func newConfig() (config, error) {
@@ -176,7 +178,7 @@ func (a *authorizationInfo) callbackHandler(c echo.Context) error {
 	return c.HTML(http.StatusOK, "Callback recevied. You can close the tab now.")
 }
 
-func (a *authorizationInfo) getAndPrintToken(ctx context.Context) error {
+func (a *authorizationInfo) getAndPrintToken(ctx context.Context, extraTokenParams map[string]string) error {
 	if a.clientID == "" {
 		return fmt.Errorf("clientID is empty")
 	}
@@ -199,6 +201,10 @@ func (a *authorizationInfo) getAndPrintToken(ctx context.Context) error {
 	data.Set("code_verifier", a.codeVerifier)
 	data.Set("code", a.responseCode)
 	data.Set("redirect_uri", a.callback)
+
+	for k, v := range extraTokenParams {
+		data.Set(k, v)
+	}
 
 	req, err := http.NewRequestWithContext(ctx, "POST", a.tokenEndpoint, strings.NewReader(data.Encode()))
 	if err != nil {
@@ -229,7 +235,7 @@ func (a *authorizationInfo) getAndPrintToken(ctx context.Context) error {
 	return nil
 }
 
-func getAuthorizationInfo(callback string, issuer string, clientID string, scopes string) (authorizationInfo, error) {
+func getAuthorizationInfo(callback string, issuer string, clientID string, scopes string, extraAuthzParams map[string]string) (authorizationInfo, error) {
 	if callback == "" {
 		return authorizationInfo{}, fmt.Errorf("callback is empty")
 	}
@@ -264,13 +270,17 @@ func getAuthorizationInfo(callback string, issuer string, clientID string, scope
 	}
 
 	query := url.Values{}
-	query.Add("client_id", clientID)
-	query.Add("code_challenge", codeChallange)
-	query.Add("code_challenge_method", "S256")
-	query.Add("redirect_uri", callback)
-	query.Add("response_type", "code")
-	query.Add("scope", scopes)
-	query.Add("state", state)
+	query.Set("client_id", clientID)
+	query.Set("code_challenge", codeChallange)
+	query.Set("code_challenge_method", "S256")
+	query.Set("redirect_uri", callback)
+	query.Set("response_type", "code")
+	query.Set("scope", scopes)
+	query.Set("state", state)
+
+	for k, v := range extraAuthzParams {
+		query.Set(k, v)
+	}
 
 	authzUrl.RawQuery = query.Encode()
 
