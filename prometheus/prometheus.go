@@ -144,20 +144,10 @@ type PushGateway struct {
 }
 
 // NewPrometheus generates a new set of metrics with a certain subsystem name
-func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsList ...[]*Metric) *Prometheus {
-	var metricsList []*Metric
+func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsList ...*Metric) *Prometheus {
+	var metricsList []*Metric = append(customMetricsList, standardMetrics...)
 	if skipper == nil {
 		skipper = middleware.DefaultSkipper
-	}
-
-	if len(customMetricsList) > 1 {
-		panic("Too many args. NewPrometheus( string, <optional []*Metric> ).")
-	} else if len(customMetricsList) == 1 {
-		metricsList = customMetricsList[0]
-	}
-
-	for _, metric := range standardMetrics {
-		metricsList = append(metricsList, metric)
 	}
 
 	p := &Prometheus{
