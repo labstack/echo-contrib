@@ -90,7 +90,7 @@ func TraceProxyWithConfig(config TraceProxyConfig) echo.MiddlewareFunc {
 			}
 			defer span.Finish()
 			ctx := zipkin.NewContext(c.Request().Context(), span)
-			c.Request().WithContext(ctx)
+			c.SetRequest(c.Request().WithContext(ctx))
 			b3.InjectHTTP(c.Request())(span.Context())
 			nrw := NewResponseWriter(c.Response().Writer)
 			if err := next(c); err != nil {
