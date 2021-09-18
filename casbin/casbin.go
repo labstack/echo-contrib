@@ -64,6 +64,15 @@ type (
 
 		// Method to get the username - defaults to using basic auth
 		UserGetter func(c echo.Context) (string, error)
+
+		// Method to get the domain
+		DomainGetter func(c echo.Context) (string, error)
+
+		// Method to handle error
+		ErrorHandler func(c echo.Context, err error) error
+
+		// Method to handle forbidden
+		ForbiddenHandler func(c echo.Context) error
 	}
 )
 
@@ -74,6 +83,12 @@ var (
 		UserGetter: func(c echo.Context) (string, error) {
 			username, _, _ := c.Request().BasicAuth()
 			return username, nil
+		},
+		ErrorHandler: func(c echo.Context, err error) error {
+			return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+		},
+		ForbiddenHandler: func(c echo.Context) error {
+			return echo.ErrForbidden
 		},
 	}
 )
@@ -95,7 +110,16 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 	if config.Skipper == nil {
 		config.Skipper = DefaultConfig.Skipper
 	}
+	if config.UserGetter == nil {
+		config.UserGetter = DefaultConfig.UserGetter
+	}
+	if config.ErrorHandler == nil {
+		config.ErrorHandler = DefaultConfig.ErrorHandler
+	}
 
+	if config.ForbiddenHandler == nil {
+		config.ForbiddenHandler = DefaultConfig.ForbiddenHandler
+	}
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
 			if config.Skipper(c) {
@@ -105,10 +129,10 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 			if pass, err := config.CheckPermission(c); err == nil && pass {
 				return next(c)
 			} else if err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+				return config.ErrorHandler(c, err)
 			}
 
-			return echo.ErrForbidden
+			return config.ForbiddenHandler(c)
 		}
 	}
 }
@@ -130,5 +154,15 @@ func (a *Config) CheckPermission(c echo.Context) (bool, error) {
 	}
 	method := c.Request().Method
 	path := c.Request().URL.Path
+
+	// Setted DomainGetter
+	if a.DomainGetter != nil {
+		domain, err := a.DomainGetter(c)
+		if err != nil {
+			return false, nil
+		}
+		return a.Enforcer.Enforce(user, domain, path, method)
+	}
+
 	return a.Enforcer.Enforce(user, path, method)
 }
