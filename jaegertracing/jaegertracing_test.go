@@ -18,6 +18,7 @@ import (
 type mockSpan struct {
 	tracer   opentracing.Tracer
 	tags     map[string]interface{}
+	logs     map[string]interface{}
 	opName   string
 	finished bool
 }
@@ -26,6 +27,7 @@ func createSpan(tracer opentracing.Tracer) *mockSpan {
 	return &mockSpan{
 		tracer: tracer,
 		tags:   make(map[string]interface{}),
+		logs:   make(map[string]interface{}),
 	}
 }
 
@@ -39,6 +41,10 @@ func (sp *mockSpan) getOpName() string {
 
 func (sp *mockSpan) getTag(key string) interface{} {
 	return sp.tags[key]
+}
+
+func (sp *mockSpan) getLog(key string) interface{} {
+	return sp.logs[key]
 }
 
 func (sp *mockSpan) Finish() {
@@ -60,6 +66,13 @@ func (sp *mockSpan) SetTag(key string, value interface{}) opentracing.Span {
 func (sp *mockSpan) LogFields(fields ...log.Field) {
 }
 func (sp *mockSpan) LogKV(alternatingKeyValues ...interface{}) {
+	for i := 0; i < len(alternatingKeyValues); i += 2 {
+		ikey := alternatingKeyValues[i]
+		value := alternatingKeyValues[i+1]
+		if key, ok := ikey.(string); ok {
+			sp.logs[key] = value
+		}
+	}
 }
 func (sp *mockSpan) SetBaggageItem(restrictedKey, value string) opentracing.Span {
 	return sp
@@ -162,7 +175,7 @@ func TestTraceWithDefaultConfig(t *testing.T) {
 
 		assert.Equal(t, uint16(400), tracer.currentSpan().getTag("http.status_code"))
 		assert.Equal(t, true, tracer.currentSpan().getTag("error"))
-		assert.Equal(t, "baaaad request", tracer.currentSpan().getTag("error.message"))
+		assert.Equal(t, "baaaad request", tracer.currentSpan().getLog("error.message"))
 	})
 
 	t.Run("unknown error", func(t *testing.T) {
@@ -172,7 +185,7 @@ func TestTraceWithDefaultConfig(t *testing.T) {
 
 		assert.Equal(t, uint16(500), tracer.currentSpan().getTag("http.status_code"))
 		assert.Equal(t, true, tracer.currentSpan().getTag("error"))
-		assert.Equal(t, "internal stuff went wrong", tracer.currentSpan().getTag("error.message"))
+		assert.Equal(t, "internal stuff went wrong", tracer.currentSpan().getLog("error.message"))
 	})
 }
 
@@ -215,8 +228,8 @@ func TestTraceWithConfigOfBodyDump(t *testing.T) {
 	assert.Equal(t, true, tracer.currentSpan().isFinished())
 	assert.Equal(t, "EchoTracer", tracer.currentSpan().getTag("component"))
 	assert.Equal(t, "/trace", tracer.currentSpan().getTag("http.url"))
-	assert.Equal(t, `{"name": "Lorem"}`, tracer.currentSpan().getTag("http.req.body"))
-	assert.Equal(t, `Hi`, tracer.currentSpan().getTag("http.resp.body"))
+	assert.Equal(t, `{"name": "Lorem"}`, tracer.currentSpan().getLog("http.req.body"))
+	assert.Equal(t, `Hi`, tracer.currentSpan().getLog("http.resp.body"))
 	assert.Equal(t, uint16(200), tracer.currentSpan().getTag("http.status_code"))
 	assert.Equal(t, nil, tracer.currentSpan().getTag("error"))
 	assert.Equal(t, true, tracer.hasStartSpanWithOption)
