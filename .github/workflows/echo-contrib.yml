@@ -20,15 +20,14 @@ on:
       - '.github/**'
       - 'codecov.yml'
 
-env:
-  latest: '1.17'
-
 jobs:
   test:
+    env:
+      latest: '1.17'
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        go: [1.14, 1.15, 1.16, 1.17]
+        go: ['1.14', '1.15', '1.16', '1.17']
     name: ${{ matrix.os }} @ Go ${{ matrix.go }}
     runs-on: ${{ matrix.os }}
     steps:
@@ -56,7 +55,6 @@ jobs:
         if: success() && matrix.go == env.latest && matrix.os == 'ubuntu-latest'
         uses: codecov/codecov-action@v2
         with:
-          token:
           fail_ci_if_error: false
   benchmark:
     needs: test
