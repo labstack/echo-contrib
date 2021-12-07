@@ -45,11 +45,11 @@ Advanced example:
 package casbin
 
 import (
-	"net/http"
-
+	"errors"
 	"github.com/casbin/casbin/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
+	"net/http"
 )
 
 type (
@@ -59,11 +59,18 @@ type (
 		Skipper middleware.Skipper
 
 		// Enforcer CasbinAuth main rule.
-		// Required.
+		// One of Enforcer or EnforceHandler fields is required.
 		Enforcer *casbin.Enforcer
+
+		// EnforceHandler is custom callback to handle enforcing.
+		// One of Enforcer or EnforceHandler fields is required.
+		EnforceHandler func(c echo.Context, user string) (bool, error)
 
 		// Method to get the username - defaults to using basic auth
 		UserGetter func(c echo.Context) (string, error)
+
+		// Method to handle errors
+		ErrorHandler func(c echo.Context, internal error, proposedStatus int) error
 	}
 )
 
@@ -74,6 +81,11 @@ var (
 		UserGetter: func(c echo.Context) (string, error) {
 			username, _, _ := c.Request().BasicAuth()
 			return username, nil
+		},
+		ErrorHandler: func(c echo.Context, internal error, proposedStatus int) error {
+			err := echo.NewHTTPError(proposedStatus, internal.Error())
+			err.Internal = internal
+			return err
 		},
 	}
 )
@@ -91,9 +103,22 @@ func Middleware(ce *casbin.Enforcer) echo.MiddlewareFunc {
 // MiddlewareWithConfig returns a CasbinAuth middleware with config.
 // See `Middleware()`.
 func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
-	// Defaults
+	if config.Enforcer == nil && config.EnforceHandler == nil {
+		panic("one of casbin middleware Enforcer or EnforceHandler fields must be set")
+	}
 	if config.Skipper == nil {
 		config.Skipper = DefaultConfig.Skipper
+	}
+	if config.UserGetter == nil {
+		config.UserGetter = DefaultConfig.UserGetter
+	}
+	if config.ErrorHandler == nil {
+		config.ErrorHandler = DefaultConfig.ErrorHandler
+	}
+	if config.EnforceHandler == nil {
+		config.EnforceHandler = func(c echo.Context, user string) (bool, error) {
+			return config.Enforcer.Enforce(user, c.Request().URL.Path, c.Request().Method)
+		}
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
@@ -102,33 +127,18 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 				return next(c)
 			}
 
-			if pass, err := config.CheckPermission(c); err == nil && pass {
-				return next(c)
-			} else if err != nil {
-				return echo.NewHTTPError(http.StatusInternalServerError, err.Error())
+			user, err := config.UserGetter(c)
+			if err != nil {
+				return config.ErrorHandler(c, err, http.StatusForbidden)
 			}
-
-			return echo.ErrForbidden
+			pass, err := config.EnforceHandler(c, user)
+			if err != nil {
+				return config.ErrorHandler(c, err, http.StatusInternalServerError)
+			}
+			if !pass {
+				return config.ErrorHandler(c, errors.New("enforce did not pass"), http.StatusForbidden)
+			}
+			return next(c)
 		}
 	}
-}
-
-// GetUserName gets the user name from the request.
-// It calls the UserGetter field of the Config struct that allows the caller to customize user identification.
-func (a *Config) GetUserName(c echo.Context) (string, error) {
-	username, err := a.UserGetter(c)
-	return username, err
-}
-
-// CheckPermission checks the user/method/path combination from the request.
-// Returns true (permission granted) or false (permission forbidden)
-func (a *Config) CheckPermission(c echo.Context) (bool, error) {
-	user, err := a.GetUserName(c)
-	if err != nil {
-		// Fail safe and do not propagate
-		return false, nil
-	}
-	method := c.Request().Method
-	path := c.Request().URL.Path
-	return a.Enforcer.Enforce(user, path, method)
 }
