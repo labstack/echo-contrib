@@ -2,8 +2,10 @@ package casbin
 
 import (
 	"errors"
+	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/casbin/casbin/v2"
@@ -130,4 +132,28 @@ func TestUserGetterError(t *testing.T) {
 		return c.String(http.StatusOK, "test")
 	})
 	testRequest(t, h, "cathy", "/dataset1/item", "GET", 403)
+}
+
+func TestCustomEnforceHandler(t *testing.T) {
+	ce, err := casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")
+	assert.NoError(t, err)
+
+	_, err = ce.AddPolicy("bob", "/user/bob", "PATCH_SELF")
+	assert.NoError(t, err)
+
+	cnf := Config{
+		EnforceHandler: func(c echo.Context, user string) (bool, error) {
+			method := c.Request().Method
+			if strings.HasPrefix(c.Request().URL.Path, "/user/bob") {
+				method += "_SELF"
+			}
+			return ce.Enforce(user, c.Request().URL.Path, method)
+		},
+	}
+	h := MiddlewareWithConfig(cnf)(func(c echo.Context) error {
+		return c.String(http.StatusOK, "test")
+	})
+	testRequest(t, h, "bob", "/dataset2/resource1", "GET", http.StatusOK)
+	testRequest(t, h, "bob", "/user/alice", "PATCH", http.StatusForbidden)
+	testRequest(t, h, "bob", "/user/bob", "PATCH", http.StatusOK)
 }
