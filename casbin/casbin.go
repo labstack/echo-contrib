@@ -64,6 +64,10 @@ type (
 
 		// Method to get the username - defaults to using basic auth
 		UserGetter func(c echo.Context) (string, error)
+		// ActionGetter returns the action - defaults to using the HTTP method
+		ActionGetter func(c echo.Context) string
+		// ObjectGetter returns the object of the action - defaults to the requesting URL path
+		ObjectGetter func(c echo.Context) string
 	}
 )
 
@@ -74,6 +78,12 @@ var (
 		UserGetter: func(c echo.Context) (string, error) {
 			username, _, _ := c.Request().BasicAuth()
 			return username, nil
+		},
+		ActionGetter: func(c echo.Context) string {
+			return c.Request().Method
+		},
+		ObjectGetter: func(c echo.Context) string {
+			return c.Request().URL.Path
 		},
 	}
 )
@@ -120,6 +130,20 @@ func (a *Config) GetUserName(c echo.Context) (string, error) {
 	return username, err
 }
 
+func (a *Config) GetAction(c echo.Context) string {
+	if a.ActionGetter != nil {
+		return a.ActionGetter(c)
+	}
+	return DefaultConfig.ActionGetter(c)
+}
+
+func (a *Config) GetObject(c echo.Context) string {
+	if a.ObjectGetter != nil {
+		return a.ObjectGetter(c)
+	}
+	return DefaultConfig.ObjectGetter(c)
+}
+
 // CheckPermission checks the user/method/path combination from the request.
 // Returns true (permission granted) or false (permission forbidden)
 func (a *Config) CheckPermission(c echo.Context) (bool, error) {
@@ -128,7 +152,7 @@ func (a *Config) CheckPermission(c echo.Context) (bool, error) {
 		// Fail safe and do not propagate
 		return false, nil
 	}
-	method := c.Request().Method
-	path := c.Request().URL.Path
-	return a.Enforcer.Enforce(user, path, method)
+	action := a.GetAction(c)
+	object := a.GetObject(c)
+	return a.Enforcer.Enforce(user, object, action)
 }

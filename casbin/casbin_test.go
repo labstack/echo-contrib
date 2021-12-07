@@ -4,6 +4,7 @@ import (
 	"errors"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/casbin/casbin/v2"
@@ -115,6 +116,29 @@ func TestCustomUserGetter(t *testing.T) {
 		return c.String(http.StatusOK, "test")
 	})
 	testRequest(t, h, "cathy", "/dataset1/item", "GET", 403)
+}
+
+func TestCustomActionGetter(t *testing.T) {
+	ce, _ := casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")
+	ce.AddPolicy("bob", "/user/bob", "PATCH_SELF")
+	cnf := Config{
+		Skipper:    middleware.DefaultSkipper,
+		Enforcer:   ce,
+		UserGetter: DefaultConfig.UserGetter,
+		ActionGetter: func(c echo.Context) string {
+			method := c.Request().Method
+			if strings.HasPrefix(c.Request().URL.Path, "/user/bob") {
+				method += "_SELF"
+			}
+			return method
+		},
+	}
+	h := MiddlewareWithConfig(cnf)(func(c echo.Context) error {
+		return c.String(http.StatusOK, "test")
+	})
+	testRequest(t, h, "bob", "/dataset2/resource1", "GET", 200)
+	testRequest(t, h, "bob", "/user/alice", "PATCH", 403)
+	testRequest(t, h, "bob", "/user/bob", "PATCH", 200)
 }
 
 func TestUserGetterError(t *testing.T) {
