@@ -1,6 +1,7 @@
 package session
 
 import (
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -50,4 +51,12 @@ func TestMiddleware(t *testing.T) {
 	h = mw(handler)
 	assert.NoError(t, h(c))
 	assert.Contains(t, rec.Header().Get(echo.HeaderSetCookie), "labstack.com")
+
+	e = echo.New()
+	req = httptest.NewRequest(echo.GET, "/", nil)
+	rec = httptest.NewRecorder()
+	c = e.NewContext(req, rec)
+	_, err := Get("test", c)
+
+	assert.EqualError(t, err, fmt.Sprintf("%q session store not found", key))
 }
