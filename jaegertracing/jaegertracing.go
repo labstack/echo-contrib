@@ -55,6 +55,13 @@ type (
 
 		// add req body & resp body to tracing tags
 		IsBodyDump bool
+
+		// prevent logging long http request bodies
+		LimitHTTPBody bool
+
+		// http body limit size (in bytes)
+		// NOTE: don't specify values larger than 60000 as jaeger can't handle values in span.LogKV larger than 60000 bytes
+		LimitSize int
 	}
 )
 
@@ -64,6 +71,9 @@ var (
 		Skipper:       middleware.DefaultSkipper,
 		ComponentName: defaultComponentName,
 		IsBodyDump:    false,
+
+		LimitHTTPBody: true,
+		LimitSize:     60_000,
 	}
 )
 
@@ -154,19 +164,24 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 			sp.SetTag("request_id", requestID)
 
 			// Dump request & response body
-			var respDumper *ResponseDumper
+			var respDumper *responseDumper
 			if config.IsBodyDump {
 				// request
 				reqBody := []byte{}
 				if c.Request().Body != nil {
 					reqBody, _ = ioutil.ReadAll(c.Request().Body)
-					sp.LogKV("http.req.body", string(reqBody))
+
+					if config.LimitHTTPBody {
+						sp.LogKV("http.req.body", limitString(string(reqBody), config.LimitSize))
+					} else {
+						sp.LogKV("http.req.body", string(reqBody))
+					}
 				}
 
 				req.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody)) // reset original request body
 
 				// response
-				respDumper = NewResponseDumper(c.Response())
+				respDumper = newResponseDumper(c.Response())
 				c.Response().Writer = respDumper
 			}
 
@@ -189,15 +204,24 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 
 			// Dump response body
 			if config.IsBodyDump {
-				sp.LogKV("http.resp.body", respDumper.GetResponse())
+				if config.LimitHTTPBody {
+					sp.LogKV("http.resp.body", limitString(respDumper.GetResponse(), config.LimitSize))
+				} else {
+					sp.LogKV("http.resp.body", respDumper.GetResponse())
+				}
 			}
-
-			// echo request_id back in response
-			c.Response().Header().Set(echo.HeaderXRequestID, requestID)
 
 			return nil // error was already processed with ctx.Error(err)
 		}
 	}
+}
+
+func limitString(str string, size int) string {
+	if len(str) > size {
+        return str[:size/2] + "\n---- skipped ----\n" + str[len(str)-size/2:]
+	}
+
+    return str
 }
 
 func logError(span opentracing.Span, err error) {

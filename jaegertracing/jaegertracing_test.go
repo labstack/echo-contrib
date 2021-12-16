@@ -277,3 +277,51 @@ func TestTraceOfNoCurrentSpan(t *testing.T) {
 
 	assert.Equal(t, false, tracer.hasStartSpanWithOption)
 }
+
+func TestTraceWithLimitHTTPBody(t *testing.T) {
+	tracer := createMockTracer()
+
+	e := echo.New()
+	e.Use(TraceWithConfig(TraceConfig{
+		Tracer:        tracer,
+		ComponentName: "EchoTracer",
+		IsBodyDump:    true,
+		LimitHTTPBody: true,
+		LimitSize:     10,
+	}))
+	e.POST("/trace", func(c echo.Context) error {
+		return c.String(200, "Hi 123456789012345678901234567890")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/trace", bytes.NewBufferString("123456789012345678901234567890"))
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, true, tracer.currentSpan().isFinished())
+	assert.Equal(t, "12345\n---- skipped ----\n67890", tracer.currentSpan().getLog("http.req.body"))
+	assert.Equal(t, "Hi 12\n---- skipped ----\n67890", tracer.currentSpan().getLog("http.resp.body"))
+}
+
+func TestTraceWithoutLimitHTTPBody(t *testing.T) {
+	tracer := createMockTracer()
+
+	e := echo.New()
+	e.Use(TraceWithConfig(TraceConfig{
+		Tracer:        tracer,
+		ComponentName: "EchoTracer",
+		IsBodyDump:    true,
+		LimitHTTPBody: false, // disabled
+		LimitSize:     10,
+	}))
+	e.POST("/trace", func(c echo.Context) error {
+		return c.String(200, "Hi 123456789012345678901234567890")
+	})
+
+	req := httptest.NewRequest(http.MethodPost, "/trace", bytes.NewBufferString("123456789012345678901234567890"))
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, true, tracer.currentSpan().isFinished())
+	assert.Equal(t, "123456789012345678901234567890", tracer.currentSpan().getLog("http.req.body"))
+	assert.Equal(t, "Hi 123456789012345678901234567890", tracer.currentSpan().getLog("http.resp.body"))
+}
