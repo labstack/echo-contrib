@@ -36,7 +36,7 @@ var (
 func Get(name string, c echo.Context) (*sessions.Session, error) {
 	s := c.Get(key)
 	if s == nil {
-		return nil, fmt.Errorf("%q session not found", name)
+		return nil, fmt.Errorf("%q session store not found", key)
 	}
 	store := s.(sessions.Store)
 	return store.Get(c.Request(), name)
