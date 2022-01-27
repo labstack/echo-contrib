@@ -304,7 +304,7 @@ func CreateChildSpan(ctx echo.Context, name string) opentracing.Span {
 
 // NewTracedRequest generates a new traced HTTP request with opentracing headers injected into it
 func NewTracedRequest(method string, url string, body io.Reader, span opentracing.Span) (*http.Request, error) {
-	req, err := http.NewRequest(method, url, nil)
+	req, err := http.NewRequest(method, url, body)
 	if err != nil {
 		panic(err.Error())
 	}
