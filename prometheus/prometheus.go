@@ -39,6 +39,24 @@ import (
 var defaultMetricPath = "/metrics"
 var defaultSubsystem = "echo"
 
+const (
+	_          = iota // ignore first value by assigning to blank identifier
+	KB float64 = 1 << (10 * iota)
+	MB
+	GB
+	TB
+)
+
+// reqDurBuckets is the buckets for request duration. Here, we use the prometheus defaults
+// which are for ~10s request length max: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
+var reqDurBuckets = prometheus.DefBuckets
+
+// reqSzBuckets is the buckets for request size. Here we define a spectrom from 1KB thru 1NB up to 10MB.
+var reqSzBuckets = []float64{1.0 * KB, 2.0 * KB, 5.0 * KB, 10.0 * KB, 100 * KB, 500 * KB, 1.0 * MB, 2.5 * MB, 5.0 * MB, 10.0 * MB}
+
+// resSzBuckets is the buckets for response size. Here we define a spectrom from 1KB thru 1NB up to 10MB.
+var resSzBuckets = []float64{1.0 * KB, 2.0 * KB, 5.0 * KB, 10.0 * KB, 100 * KB, 500 * KB, 1.0 * MB, 2.5 * MB, 5.0 * MB, 10.0 * MB}
+
 // Standard default metrics
 //	counter, counter_vec, gauge, gauge_vec,
 //	histogram, histogram_vec, summary, summary_vec
@@ -54,21 +72,24 @@ var reqDur = &Metric{
 	Name:        "request_duration_seconds",
 	Description: "The HTTP request latencies in seconds.",
 	Args:        []string{"code", "method", "url"},
-	Type:        "histogram_vec"}
+	Type:        "histogram_vec",
+	Buckets:     reqDurBuckets}
 
 var resSz = &Metric{
 	ID:          "resSz",
 	Name:        "response_size_bytes",
 	Description: "The HTTP response sizes in bytes.",
 	Args:        []string{"code", "method", "url"},
-	Type:        "histogram_vec"}
+	Type:        "histogram_vec",
+	Buckets:     resSzBuckets}
 
 var reqSz = &Metric{
 	ID:          "reqSz",
 	Name:        "request_size_bytes",
 	Description: "The HTTP request sizes in bytes.",
 	Args:        []string{"code", "method", "url"},
-	Type:        "histogram_vec"}
+	Type:        "histogram_vec",
+	Buckets:     reqSzBuckets}
 
 var standardMetrics = []*Metric{
 	reqCnt,
@@ -108,6 +129,7 @@ type Metric struct {
 	Description     string
 	Type            string
 	Args            []string
+	Buckets         []float64
 }
 
 // Prometheus contains the metrics gathered by the instance and its path
@@ -307,6 +329,7 @@ func NewMetric(m *Metric, subsystem string) prometheus.Collector {
 				Subsystem: subsystem,
 				Name:      m.Name,
 				Help:      m.Description,
+				Buckets:   m.Buckets,
 			},
 			m.Args,
 		)
@@ -316,6 +339,7 @@ func NewMetric(m *Metric, subsystem string) prometheus.Collector {
 				Subsystem: subsystem,
 				Name:      m.Name,
 				Help:      m.Description,
+				Buckets:   m.Buckets,
 			},
 		)
 	case "summary_vec":
