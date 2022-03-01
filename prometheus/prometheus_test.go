@@ -30,6 +30,30 @@ func TestPrometheus_Use(t *testing.T) {
 	unregister(p)
 }
 
+func TestPrometheus_Buckets(t *testing.T) {
+	e := echo.New()
+	p := NewPrometheus("echo", nil)
+	p.Use(e)
+
+	path := "/ping"
+
+	g := gofight.New()
+	g.GET(path).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusNotFound, r.Code) })
+
+	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
+		assert.Equal(t, http.StatusOK, r.Code)
+		assert.Contains(t, r.Body.String(), fmt.Sprintf("%s_request_duration_seconds", p.Subsystem))
+		assert.Regexp(t, "request_duration_seconds.*le=\"0.005\"", r.Body.String(), "duration should have time bucket (like, 0.005s)")
+		assert.NotRegexp(t, "request_duration_seconds.*le=\"512000\"", r.Body.String(), "duration should NOT have a size bucket (like, 512K)")
+		assert.Regexp(t, "response_size_bytes.*le=\"512000\"", r.Body.String(), "response size should have a 512K (size) bucket")
+		assert.NotRegexp(t, "response_size_bytes.*le=\"0.005\"", r.Body.String(), "response size should NOT have time bucket (like, 0.005s)")
+		assert.Regexp(t, "request_size_bytes.*le=\"512000\"", r.Body.String(), "request size should have a 512K (size) bucket")
+		assert.NotRegexp(t, "request_size_bytes.*le=\"0.005\"", r.Body.String(), "request should NOT have time bucket (like, 0.005s)")
+	})
+
+	unregister(p)
+}
+
 func TestPath(t *testing.T) {
 	p := NewPrometheus("echo", nil)
 	assert.Equal(t, p.MetricsPath, defaultMetricPath, "no usage of path should yield default path")
