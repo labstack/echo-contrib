@@ -12,27 +12,21 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func unregister(p *Prometheus) {
-	prometheus.Unregister(p.reqCnt)
-	prometheus.Unregister(p.reqDur)
-	prometheus.Unregister(p.reqSz)
-	prometheus.Unregister(p.resSz)
-}
-
 func TestPrometheus_Use(t *testing.T) {
 	e := echo.New()
 	p := NewPrometheus("echo", nil)
+	p.Registerer = prometheus.NewRegistry()
 	p.Use(e)
 
 	assert.Equal(t, 1, len(e.Routes()), "only one route should be added")
 	assert.NotNil(t, e, "the engine should not be empty")
 	assert.Equal(t, e.Routes()[0].Path, p.MetricsPath, "the path should match the metrics path")
-	unregister(p)
 }
 
 func TestPrometheus_Buckets(t *testing.T) {
 	e := echo.New()
 	p := NewPrometheus("echo", nil)
+	p.Registerer = prometheus.NewRegistry()
 	p.Use(e)
 
 	path := "/ping"
@@ -51,24 +45,24 @@ func TestPrometheus_Buckets(t *testing.T) {
 		assert.NotRegexp(t, "request_size_bytes.*le=\"0.005\"", r.Body.String(), "request should NOT have time bucket (like, 0.005s)")
 	})
 
-	unregister(p)
 }
 
 func TestPath(t *testing.T) {
 	p := NewPrometheus("echo", nil)
+	p.Registerer = prometheus.NewRegistry()
 	assert.Equal(t, p.MetricsPath, defaultMetricPath, "no usage of path should yield default path")
-	unregister(p)
 }
 
 func TestSubsystem(t *testing.T) {
 	p := NewPrometheus("echo", nil)
+	p.Registerer = prometheus.NewRegistry()
 	assert.Equal(t, p.Subsystem, "echo", "subsystem should be default")
-	unregister(p)
 }
 
 func TestUse(t *testing.T) {
 	e := echo.New()
 	p := NewPrometheus("echo", nil)
+	p.Registerer = prometheus.NewRegistry()
 
 	g := gofight.New()
 	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
@@ -80,7 +74,6 @@ func TestUse(t *testing.T) {
 	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
 		assert.Equal(t, http.StatusOK, r.Code)
 	})
-	unregister(p)
 }
 
 func TestIgnore(t *testing.T) {
@@ -95,6 +88,7 @@ func TestIgnore(t *testing.T) {
 		return false
 	}
 	p := NewPrometheus("echo", ignore)
+	p.Registerer = prometheus.NewRegistry()
 	p.Use(e)
 
 	g := gofight.New()
@@ -111,12 +105,12 @@ func TestIgnore(t *testing.T) {
 		assert.NotContains(t, r.Body.String(), fmt.Sprintf("%s_requests_total", p.Subsystem))
 		assert.NotContains(t, r.Body.String(), lipath, "ignored path must not be present")
 	})
-	unregister(p)
 }
 
 func TestMetricsGenerated(t *testing.T) {
 	e := echo.New()
 	p := NewPrometheus("echo", nil)
+	p.Registerer = prometheus.NewRegistry()
 	p.Use(e)
 
 	path := "/ping"
@@ -130,12 +124,12 @@ func TestMetricsGenerated(t *testing.T) {
 		assert.Contains(t, r.Body.String(), fmt.Sprintf("%s_requests_total", p.Subsystem))
 		assert.Contains(t, r.Body.String(), lpath, "path must be present")
 	})
-	unregister(p)
 }
 
 func TestMetricsPathIgnored(t *testing.T) {
 	e := echo.New()
 	p := NewPrometheus("echo", nil)
+	p.Registerer = prometheus.NewRegistry()
 	p.Use(e)
 
 	g := gofight.New()
@@ -143,12 +137,12 @@ func TestMetricsPathIgnored(t *testing.T) {
 		assert.Equal(t, http.StatusOK, r.Code)
 		assert.NotContains(t, r.Body.String(), fmt.Sprintf("%s_requests_total", p.Subsystem))
 	})
-	unregister(p)
 }
 
 func TestMetricsPushGateway(t *testing.T) {
 	e := echo.New()
 	p := NewPrometheus("echo", nil)
+	p.Registerer = prometheus.NewRegistry()
 	p.Use(e)
 
 	g := gofight.New()
@@ -156,12 +150,12 @@ func TestMetricsPushGateway(t *testing.T) {
 		assert.Equal(t, http.StatusOK, r.Code)
 		assert.NotContains(t, r.Body.String(), fmt.Sprintf("%s_request_duration", p.Subsystem))
 	})
-	unregister(p)
 }
 
 func TestMetricsForErrors(t *testing.T) {
 	e := echo.New()
 	p := NewPrometheus("echo", nil)
+	p.Registerer = prometheus.NewRegistry()
 	p.Use(e)
 
 	e.GET("/handler_for_ok", func(c echo.Context) error {
@@ -190,5 +184,4 @@ func TestMetricsForErrors(t *testing.T) {
 		assert.Contains(t, body, `echo_requests_total{code="409",host="",method="GET",url="/handler_for_nok"} 2`)
 		assert.Contains(t, body, `echo_requests_total{code="502",host="",method="GET",url="/handler_for_error"} 1`)
 	})
-	unregister(p)
 }
