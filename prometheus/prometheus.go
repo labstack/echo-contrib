@@ -144,6 +144,7 @@ type Prometheus struct {
 	MetricsPath string
 	Subsystem   string
 	Skipper     middleware.Skipper
+	Registerer  prometheus.Registerer
 
 	RequestCounterURLLabelMappingFunc  RequestCounterLabelMappingFunc
 	RequestCounterHostLabelMappingFunc RequestCounterLabelMappingFunc
@@ -192,6 +193,7 @@ func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsLi
 		RequestCounterHostLabelMappingFunc: func(c echo.Context) string {
 			return c.Request().Host
 		},
+		Registerer: prometheus.DefaultRegisterer,
 	}
 
 	p.registerMetrics(subsystem)
@@ -367,7 +369,7 @@ func (p *Prometheus) registerMetrics(subsystem string) {
 
 	for _, metricDef := range p.MetricsList {
 		metric := NewMetric(metricDef, subsystem)
-		if err := prometheus.Register(metric); err != nil {
+		if err := p.Registerer.Register(metric); err != nil {
 			log.Errorf("%s could not be registered in Prometheus: %v", metricDef.Name, err)
 		}
 		switch metricDef {
