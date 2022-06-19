@@ -64,7 +64,7 @@ type (
 		LimitSize int
 
 		// OperationNameFunc composes operation name based on context. Can be used to override default naming
-		OperationNameFunc func(ctx echo.Context) string
+		OperationNameFunc func(c echo.Context) string
 	}
 )
 
@@ -255,9 +255,9 @@ func generateToken() string {
 	return fmt.Sprintf("%x", b)
 }
 
-func defaultOperationName(ctx echo.Context) string {
-	req := ctx.Request()
-	return "HTTP " + req.Method + " URL: " + ctx.Path()
+func defaultOperationName(c echo.Context) string {
+	req := c.Request()
+	return "HTTP " + req.Method + " URL: " + c.Path()
 }
 
 // TraceFunction wraps funtion with opentracing span adding tags for the function name and caller details
