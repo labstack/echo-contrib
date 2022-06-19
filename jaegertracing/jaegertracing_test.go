@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/labstack/echo/v4"
@@ -101,11 +102,14 @@ func (tr *mockTracer) currentSpan() *mockSpan {
 }
 
 func (tr *mockTracer) StartSpan(operationName string, opts ...opentracing.StartSpanOption) opentracing.Span {
-	tr.hasStartSpanWithOption = (len(opts) > 0)
+	tr.hasStartSpanWithOption = len(opts) > 0
 	if tr.span != nil {
+		tr.span.opName = operationName
 		return tr.span
 	}
-	return createSpan(tr)
+	span := createSpan(tr)
+	span.opName = operationName
+	return span
 }
 
 func (tr *mockTracer) Inject(sm opentracing.SpanContext, format interface{}, carrier interface{}) error {
@@ -324,4 +328,59 @@ func TestTraceWithoutLimitHTTPBody(t *testing.T) {
 	assert.Equal(t, true, tracer.currentSpan().isFinished())
 	assert.Equal(t, "123456789012345678901234567890", tracer.currentSpan().getLog("http.req.body"))
 	assert.Equal(t, "Hi 123456789012345678901234567890", tracer.currentSpan().getLog("http.resp.body"))
+}
+
+func TestTraceWithDefaultOperationName(t *testing.T) {
+	tracer := createMockTracer()
+
+	e := echo.New()
+	e.Use(Trace(tracer))
+
+	e.GET("/trace", func(c echo.Context) error {
+		return c.String(http.StatusOK, "Hi")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/trace", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, "HTTP GET URL: /trace", tracer.currentSpan().getOpName())
+}
+
+func TestTraceWithCustomOperationName(t *testing.T) {
+	tracer := createMockTracer()
+
+	e := echo.New()
+	e.Use(TraceWithConfig(TraceConfig{
+		Tracer:        tracer,
+		ComponentName: "EchoTracer",
+		OperationNameFunc: func(ctx echo.Context) string {
+			// This is an example of operation name customization
+			// In most cases default formatting is more than enough
+			req := ctx.Request()
+			opName := "HTTP " + req.Method
+
+			path := ctx.Path()
+			paramNames := ctx.ParamNames()
+
+			for _, name := range paramNames {
+				from := ":" + name
+				to := "{" + name + "}"
+				path = strings.ReplaceAll(path, from, to)
+			}
+			
+			return opName + " " + path
+		},
+	}))
+
+	e.GET("/trace/:traceID/spans/:spanID", func(c echo.Context) error {
+		return c.String(http.StatusOK, "Hi")
+	})
+
+	req := httptest.NewRequest(http.MethodGet, "/trace/123456/spans/123", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, true, tracer.currentSpan().isFinished())
+	assert.Equal(t, "HTTP GET /trace/{traceID}/spans/{spanID}", tracer.currentSpan().getOpName())
 }
