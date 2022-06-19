@@ -354,21 +354,21 @@ func TestTraceWithCustomOperationName(t *testing.T) {
 	e.Use(TraceWithConfig(TraceConfig{
 		Tracer:        tracer,
 		ComponentName: "EchoTracer",
-		OperationNameFunc: func(ctx echo.Context) string {
+		OperationNameFunc: func(c echo.Context) string {
 			// This is an example of operation name customization
 			// In most cases default formatting is more than enough
-			req := ctx.Request()
+			req := c.Request()
 			opName := "HTTP " + req.Method
 
-			path := ctx.Path()
-			paramNames := ctx.ParamNames()
+			path := c.Path()
+			paramNames := c.ParamNames()
 
 			for _, name := range paramNames {
 				from := ":" + name
 				to := "{" + name + "}"
 				path = strings.ReplaceAll(path, from, to)
 			}
-			
+
 			return opName + " " + path
 		},
 	}))
