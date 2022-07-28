@@ -19,32 +19,33 @@ on:
       - '_fixture/**'
       - '.github/**'
       - 'codecov.yml'
+  workflow_dispatch:
 
 jobs:
   test:
     env:
-      latest: '1.17'
+      latest: '1.18'
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
-        go: ['1.14', '1.15', '1.16', '1.17']
+        go: ['1.16', '1.17', '1.18']
     name: ${{ matrix.os }} @ Go ${{ matrix.go }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set up Go ${{ matrix.go }}
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go }}
 
       - name: Checkout Code
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{ github.ref }}
 
       - name: Run static checks
         if: matrix.go == env.latest && matrix.os == 'ubuntu-latest'
         run: |
-          go get -u honnef.co/go/tools/cmd/staticcheck@latest
+          go install honnef.co/go/tools/cmd/staticcheck@latest
           staticcheck -tests=false ./...
 
       - name: Run Tests
@@ -53,7 +54,7 @@ jobs:
 
       - name: Upload coverage to Codecov
         if: success() && matrix.go == env.latest && matrix.os == 'ubuntu-latest'
-        uses: codecov/codecov-action@v2
+        uses: codecov/codecov-action@v3
         with:
           fail_ci_if_error: false
   benchmark:
@@ -61,28 +62,28 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest]
-        go: [1.17]
+        go: [1.18]
     name: Benchmark comparison ${{ matrix.os }} @ Go ${{ matrix.go }}
     runs-on: ${{ matrix.os }}
     steps:
       - name: Set up Go ${{ matrix.go }}
-        uses: actions/setup-go@v2
+        uses: actions/setup-go@v3
         with:
           go-version: ${{ matrix.go }}
 
       - name: Checkout Code (Previous)
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           ref: ${{ github.base_ref }}
           path: previous
 
       - name: Checkout Code (New)
-        uses: actions/checkout@v2
+        uses: actions/checkout@v3
         with:
           path: new
 
       - name: Install Dependencies
-        run: go get -v golang.org/x/perf/cmd/benchstat
+        run: go install golang.org/x/perf/cmd/benchstat@latest
 
       - name: Run Benchmark (Previous)
         run: |
