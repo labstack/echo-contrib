@@ -17,7 +17,7 @@ func TestMiddleware(t *testing.T) {
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	handler := func(c echo.Context) error {
-		sess, _ := Get("test", c)
+		sess, _ := Get(c, "test")
 		sess.Options.Domain = "labstack.com"
 		sess.Values["foo"] = "bar"
 		if err := sess.Save(c.Request(), c.Response()); err != nil {
@@ -59,7 +59,7 @@ func TestGetSessionMissingStore(t *testing.T) {
 	req := httptest.NewRequest(echo.GET, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	_, err := Get("test", c)
+	_, err := Get(c, "test")
 
 	assert.EqualError(t, err, fmt.Sprintf("%q session store not found", key))
 }

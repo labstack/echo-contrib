@@ -33,7 +33,7 @@ var (
 )
 
 // Get returns a named session.
-func Get(name string, c echo.Context) (*sessions.Session, error) {
+func Get(c echo.Context, name string) (*sessions.Session, error) {
 	s := c.Get(key)
 	if s == nil {
 		return nil, fmt.Errorf("%q session store not found", key)
