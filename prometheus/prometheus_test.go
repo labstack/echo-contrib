@@ -3,10 +3,10 @@ package prometheus
 import (
 	"fmt"
 	"net/http"
+	"net/http/httptest"
 	"strings"
 	"testing"
 
-	"github.com/appleboy/gofight/v2"
 	"github.com/labstack/echo/v4"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
@@ -37,19 +37,23 @@ func TestPrometheus_Buckets(t *testing.T) {
 
 	path := "/ping"
 
-	g := gofight.New()
-	g.GET(path).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusNotFound, r.Code) })
+	req := httptest.NewRequest(http.MethodGet, path, nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 
-	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
-		assert.Equal(t, http.StatusOK, r.Code)
-		assert.Contains(t, r.Body.String(), fmt.Sprintf("%s_request_duration_seconds", p.Subsystem))
-		assert.Regexp(t, "request_duration_seconds.*le=\"0.005\"", r.Body.String(), "duration should have time bucket (like, 0.005s)")
-		assert.NotRegexp(t, "request_duration_seconds.*le=\"512000\"", r.Body.String(), "duration should NOT have a size bucket (like, 512K)")
-		assert.Regexp(t, "response_size_bytes.*le=\"512000\"", r.Body.String(), "response size should have a 512K (size) bucket")
-		assert.NotRegexp(t, "response_size_bytes.*le=\"0.005\"", r.Body.String(), "response size should NOT have time bucket (like, 0.005s)")
-		assert.Regexp(t, "request_size_bytes.*le=\"512000\"", r.Body.String(), "request size should have a 512K (size) bucket")
-		assert.NotRegexp(t, "request_size_bytes.*le=\"0.005\"", r.Body.String(), "request should NOT have time bucket (like, 0.005s)")
-	})
+	req = httptest.NewRequest(http.MethodGet, p.MetricsPath, nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.Contains(t, rec.Body.String(), fmt.Sprintf("%s_request_duration_seconds", p.Subsystem))
+	assert.Regexp(t, "request_duration_seconds.*le=\"0.005\"", rec.Body.String(), "duration should have time bucket (like, 0.005s)")
+	assert.NotRegexp(t, "request_duration_seconds.*le=\"512000\"", rec.Body.String(), "duration should NOT have a size bucket (like, 512K)")
+	assert.Regexp(t, "response_size_bytes.*le=\"512000\"", rec.Body.String(), "response size should have a 512K (size) bucket")
+	assert.NotRegexp(t, "response_size_bytes.*le=\"0.005\"", rec.Body.String(), "response size should NOT have time bucket (like, 0.005s)")
+	assert.Regexp(t, "request_size_bytes.*le=\"512000\"", rec.Body.String(), "request size should have a 512K (size) bucket")
+	assert.NotRegexp(t, "request_size_bytes.*le=\"0.005\"", rec.Body.String(), "request should NOT have time bucket (like, 0.005s)")
 
 	unregister(p)
 }
@@ -70,16 +74,18 @@ func TestUse(t *testing.T) {
 	e := echo.New()
 	p := NewPrometheus("echo", nil)
 
-	g := gofight.New()
-	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
-		assert.Equal(t, http.StatusNotFound, r.Code)
-	})
+	req := httptest.NewRequest(http.MethodGet, p.MetricsPath, nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 
 	p.Use(e)
 
-	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
-		assert.Equal(t, http.StatusOK, r.Code)
-	})
+	req = httptest.NewRequest(http.MethodGet, p.MetricsPath, nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+
 	unregister(p)
 }
 
@@ -97,20 +103,24 @@ func TestIgnore(t *testing.T) {
 	p := NewPrometheus("echo", ignore)
 	p.Use(e)
 
-	g := gofight.New()
+	req := httptest.NewRequest(http.MethodGet, p.MetricsPath, nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.NotContains(t, rec.Body.String(), fmt.Sprintf("%s_requests_total", p.Subsystem))
 
-	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
-		assert.Equal(t, http.StatusOK, r.Code)
-		assert.NotContains(t, r.Body.String(), fmt.Sprintf("%s_requests_total", p.Subsystem))
-	})
+	req = httptest.NewRequest(http.MethodGet, "/ping", nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 
-	g.GET("/ping").Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusNotFound, r.Code) })
+	req = httptest.NewRequest(http.MethodGet, p.MetricsPath, nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
 
-	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
-		assert.Equal(t, http.StatusOK, r.Code)
-		assert.NotContains(t, r.Body.String(), fmt.Sprintf("%s_requests_total", p.Subsystem))
-		assert.NotContains(t, r.Body.String(), lipath, "ignored path must not be present")
-	})
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.NotContains(t, rec.Body.String(), lipath, "ignored path must not be present")
+
 	unregister(p)
 }
 
@@ -119,17 +129,19 @@ func TestMetricsGenerated(t *testing.T) {
 	p := NewPrometheus("echo", nil)
 	p.Use(e)
 
-	path := "/ping"
-	lpath := fmt.Sprintf(`url="%s"`, path)
+	req := httptest.NewRequest(http.MethodGet, "/ping?test=1", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
 
-	g := gofight.New()
-	g.GET(path).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusNotFound, r.Code) })
+	req = httptest.NewRequest(http.MethodGet, p.MetricsPath, nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
 
-	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
-		assert.Equal(t, http.StatusOK, r.Code)
-		assert.Contains(t, r.Body.String(), fmt.Sprintf("%s_requests_total", p.Subsystem))
-		assert.Contains(t, r.Body.String(), lpath, "path must be present")
-	})
+	assert.Equal(t, http.StatusOK, rec.Code)
+	s := rec.Body.String()
+	assert.Contains(t, s, `url="/ping"`, "path must be present")
+
 	unregister(p)
 }
 
@@ -138,11 +150,12 @@ func TestMetricsPathIgnored(t *testing.T) {
 	p := NewPrometheus("echo", nil)
 	p.Use(e)
 
-	g := gofight.New()
-	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
-		assert.Equal(t, http.StatusOK, r.Code)
-		assert.NotContains(t, r.Body.String(), fmt.Sprintf("%s_requests_total", p.Subsystem))
-	})
+	req := httptest.NewRequest(http.MethodGet, p.MetricsPath, nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.NotContains(t, rec.Body.String(), fmt.Sprintf("%s_requests_total", p.Subsystem))
 	unregister(p)
 }
 
@@ -151,11 +164,12 @@ func TestMetricsPushGateway(t *testing.T) {
 	p := NewPrometheus("echo", nil)
 	p.Use(e)
 
-	g := gofight.New()
-	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
-		assert.Equal(t, http.StatusOK, r.Code)
-		assert.NotContains(t, r.Body.String(), fmt.Sprintf("%s_request_duration", p.Subsystem))
-	})
+	req := httptest.NewRequest(http.MethodGet, p.MetricsPath, nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
+	assert.NotContains(t, rec.Body.String(), fmt.Sprintf("%s_request_duration", p.Subsystem))
+
 	unregister(p)
 }
 
@@ -174,21 +188,36 @@ func TestMetricsForErrors(t *testing.T) {
 		return echo.NewHTTPError(http.StatusBadGateway, "BAD")
 	})
 
-	g := gofight.New()
-	g.GET("/handler_for_ok").Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusOK, r.Code) })
+	req := httptest.NewRequest(http.MethodGet, "/handler_for_ok", nil)
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusOK, rec.Code)
 
-	g.GET("/handler_for_nok").Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusConflict, r.Code) })
-	g.GET("/handler_for_nok").Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusConflict, r.Code) })
+	req = httptest.NewRequest(http.MethodGet, "/handler_for_nok", nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusConflict, rec.Code)
 
-	g.GET("/handler_for_error").Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) { assert.Equal(t, http.StatusBadGateway, r.Code) })
+	req = httptest.NewRequest(http.MethodGet, "/handler_for_nok", nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusConflict, rec.Code)
 
-	g.GET(p.MetricsPath).Run(e, func(r gofight.HTTPResponse, rq gofight.HTTPRequest) {
-		assert.Equal(t, http.StatusOK, r.Code)
-		body := r.Body.String()
-		assert.Contains(t, body, fmt.Sprintf("%s_requests_total", p.Subsystem))
-		assert.Contains(t, body, `echo_requests_total{code="200",host="",method="GET",url="/handler_for_ok"} 1`)
-		assert.Contains(t, body, `echo_requests_total{code="409",host="",method="GET",url="/handler_for_nok"} 2`)
-		assert.Contains(t, body, `echo_requests_total{code="502",host="",method="GET",url="/handler_for_error"} 1`)
-	})
+	req = httptest.NewRequest(http.MethodGet, "/handler_for_error", nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusBadGateway, rec.Code)
+
+	req = httptest.NewRequest(http.MethodGet, p.MetricsPath, nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	body := rec.Body.String()
+	assert.Contains(t, body, fmt.Sprintf("%s_requests_total", p.Subsystem))
+	assert.Contains(t, body, `echo_requests_total{code="200",host="example.com",method="GET",url="/handler_for_ok"} 1`)
+	assert.Contains(t, body, `echo_requests_total{code="409",host="example.com",method="GET",url="/handler_for_nok"} 2`)
+	assert.Contains(t, body, `echo_requests_total{code="502",host="example.com",method="GET",url="/handler_for_error"} 1`)
+
 	unregister(p)
 }

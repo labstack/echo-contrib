@@ -5,17 +5,21 @@ Example:
 ```
 package main
 import (
-    "github.com/labstack/echo-contrib/jaegertracing"
-    "github.com/labstack/echo/v4"
-)
-func main() {
-    e := echo.New()
-    // Enable tracing middleware
-    c := jaegertracing.New(e, nil)
-    defer c.Close()
 
-    e.Logger.Fatal(e.Start(":1323"))
-}
+	"github.com/labstack/echo-contrib/jaegertracing"
+	"github.com/labstack/echo/v4"
+
+)
+
+	func main() {
+	    e := echo.New()
+	    // Enable tracing middleware
+	    c := jaegertracing.New(e, nil)
+	    defer c.Close()
+
+	    e.Logger.Fatal(e.Start(":1323"))
+	}
+
 ```
 */
 package jaegertracing
@@ -26,7 +30,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"reflect"
 	"runtime"
@@ -176,7 +179,7 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 				// request
 				reqBody := []byte{}
 				if c.Request().Body != nil {
-					reqBody, _ = ioutil.ReadAll(c.Request().Body)
+					reqBody, _ = io.ReadAll(c.Request().Body)
 
 					if config.LimitHTTPBody {
 						sp.LogKV("http.req.body", limitString(string(reqBody), config.LimitSize))
@@ -185,7 +188,7 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 					}
 				}
 
-				req.Body = ioutil.NopCloser(bytes.NewBuffer(reqBody)) // reset original request body
+				req.Body = io.NopCloser(bytes.NewBuffer(reqBody)) // reset original request body
 
 				// response
 				respDumper = newResponseDumper(c.Response())
