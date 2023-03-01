@@ -76,7 +76,7 @@ var reqDur = &Metric{
 	ID:          "reqDur",
 	Name:        "request_duration_seconds",
 	Description: "The HTTP request latencies in seconds.",
-	Args:        []string{"code", "method", "url"},
+	Args:        []string{"code", "method", "host", "url"},
 	Type:        "histogram_vec",
 	Buckets:     reqDurBuckets}
 
@@ -84,7 +84,7 @@ var resSz = &Metric{
 	ID:          "resSz",
 	Name:        "response_size_bytes",
 	Description: "The HTTP response sizes in bytes.",
-	Args:        []string{"code", "method", "url"},
+	Args:        []string{"code", "method", "host", "url"},
 	Type:        "histogram_vec",
 	Buckets:     resSzBuckets}
 
@@ -92,7 +92,7 @@ var reqSz = &Metric{
 	ID:          "reqSz",
 	Name:        "request_size_bytes",
 	Description: "The HTTP request sizes in bytes.",
-	Args:        []string{"code", "method", "url"},
+	Args:        []string{"code", "method", "host", "url"},
 	Type:        "histogram_vec",
 	Buckets:     reqSzBuckets}
 
@@ -439,12 +439,12 @@ func (p *Prometheus) HandlerFunc(next echo.HandlerFunc) echo.HandlerFunc {
 		}
 
 		statusStr := strconv.Itoa(status)
-		p.reqDur.WithLabelValues(statusStr, c.Request().Method, url).Observe(elapsed)
+		p.reqDur.WithLabelValues(statusStr, c.Request().Method, p.RequestCounterHostLabelMappingFunc(c), url).Observe(elapsed)
 		p.reqCnt.WithLabelValues(statusStr, c.Request().Method, p.RequestCounterHostLabelMappingFunc(c), url).Inc()
-		p.reqSz.WithLabelValues(statusStr, c.Request().Method, url).Observe(float64(reqSz))
+		p.reqSz.WithLabelValues(statusStr, c.Request().Method, p.RequestCounterHostLabelMappingFunc(c), url).Observe(float64(reqSz))
 
 		resSz := float64(c.Response().Size)
-		p.resSz.WithLabelValues(statusStr, c.Request().Method, url).Observe(resSz)
+		p.resSz.WithLabelValues(statusStr, c.Request().Method, p.RequestCounterHostLabelMappingFunc(c), url).Observe(resSz)
 
 		return err
 	}
