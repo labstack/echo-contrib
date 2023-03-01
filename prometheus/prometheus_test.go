@@ -48,6 +48,7 @@ func TestPrometheus_Buckets(t *testing.T) {
 
 	assert.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), fmt.Sprintf("%s_request_duration_seconds", p.Subsystem))
+	assert.Contains(t, rec.Body.String(), `host="example.com"`, "host must be present")
 	assert.Regexp(t, "request_duration_seconds.*le=\"0.005\"", rec.Body.String(), "duration should have time bucket (like, 0.005s)")
 	assert.NotRegexp(t, "request_duration_seconds.*le=\"512000\"", rec.Body.String(), "duration should NOT have a size bucket (like, 512K)")
 	assert.Regexp(t, "response_size_bytes.*le=\"512000\"", rec.Body.String(), "response size should have a 512K (size) bucket")
@@ -141,6 +142,7 @@ func TestMetricsGenerated(t *testing.T) {
 	assert.Equal(t, http.StatusOK, rec.Code)
 	s := rec.Body.String()
 	assert.Contains(t, s, `url="/ping"`, "path must be present")
+	assert.Contains(t, s, `host="example.com"`, "host must be present")
 
 	unregister(p)
 }
