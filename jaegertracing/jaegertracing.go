@@ -196,8 +196,19 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 			}
 
 			// setup request context - add opentracing span
-			req = req.WithContext(opentracing.ContextWithSpan(req.Context(), sp))
-			c.SetRequest(req)
+			reqSpan := req.WithContext(opentracing.ContextWithSpan(req.Context(), sp))
+			c.SetRequest(reqSpan)
+			defer func() {
+				// as we have created new http.Request object we need to make sure that temporary files created to hold MultipartForm
+				// files are cleaned up. This is done by http.Server at the end of request lifecycle but Server does not
+				// have reference to our new Request instance therefore it is our responsibility to fix the mess we caused.
+				//
+				// This means that when we are on returning path from handler middlewares up in chain from this middleware
+				// can not access these temporary files anymore because we deleted them here.
+				if reqSpan.MultipartForm != nil {
+					reqSpan.MultipartForm.RemoveAll()
+				}
+			}()
 
 			// call next middleware / controller
 			err = next(c)
