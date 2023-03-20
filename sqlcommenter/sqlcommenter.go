@@ -34,8 +34,8 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 			}
 
 			// Since echo wrapped the registered handler (see https://github.com/labstack/echo/blob/v4.10.2/echo.go#L573),
-			// we can't get the original handler name, so we use empty action here. But that's not a big deal,
-			// because we can locate the code by the route.
+			// we can't get the original handler name via `c.Handler()` and reflection, so we use empty action here.
+			// But that's not a big deal, because we can locate the code by the route.
 			route := fmt.Sprintf("%s %s", c.Request().Method, c.Path())
 			tags := http.NewHTTPRequestTags("labstack/echo", route, "")
 			ctx := core.ContextInject(c.Request().Context(), tags)
