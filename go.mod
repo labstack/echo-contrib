@@ -4,6 +4,8 @@ go 1.17
 
 require (
 	github.com/casbin/casbin/v2 v2.64.0
+	github.com/google/sqlcommenter/go/core v0.1.2
+	github.com/google/sqlcommenter/go/net/http v0.1.0
 	github.com/gorilla/context v1.1.1
 	github.com/gorilla/sessions v1.2.1
 	github.com/labstack/echo/v4 v4.10.2
@@ -23,6 +25,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0 // indirect
 	github.com/davecgh/go-spew v1.1.1 // indirect
 	github.com/golang-jwt/jwt v3.2.2+incompatible // indirect
+	github.com/golang/mock v1.6.0 // indirect
 	github.com/golang/protobuf v1.5.2 // indirect
 	github.com/gorilla/securecookie v1.1.1 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
@@ -39,6 +42,8 @@ require (
 	github.com/uber/jaeger-lib v2.4.1+incompatible // indirect
 	github.com/valyala/bytebufferpool v1.0.0 // indirect
 	github.com/valyala/fasttemplate v1.2.2 // indirect
+	go.opentelemetry.io/otel v1.11.1 // indirect
+	go.opentelemetry.io/otel/trace v1.11.1 // indirect
 	go.uber.org/atomic v1.10.0 // indirect
 	golang.org/x/crypto v0.6.0 // indirect
 	golang.org/x/net v0.7.0 // indirect
