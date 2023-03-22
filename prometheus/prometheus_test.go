@@ -164,6 +164,39 @@ func TestMetricsGenerated(t *testing.T) {
 	unregister(p)
 }
 
+func TestMetricsCustomLabels(t *testing.T) {
+	e := echo.New()
+	registry := prometheus.NewRegistry()
+	p := NewPrometheusWithConfig("echo", &PrometheusConfig{
+		MetricsPath: "/custom-label-metrics",
+		LabelDescriminators: map[string]RequestCounterLabelMappingFunc{
+			"userAgent": func(ctx echo.Context) string {
+				return ctx.Request().Header.Get("User-Agent")
+			},
+		},
+		Registerer: registry,
+		Gatherer:   registry,
+	})
+	p.Use(e)
+
+	req := httptest.NewRequest(http.MethodGet, "/ping", nil)
+	req.Header.Set("User-Agent", "curl")
+	rec := httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+
+	req = httptest.NewRequest(http.MethodGet, p.MetricsPath, nil)
+	rec = httptest.NewRecorder()
+	e.ServeHTTP(rec, req)
+
+	assert.Equal(t, http.StatusOK, rec.Code)
+	s := rec.Body.String()
+	t.Logf("body: %s\n", s)
+	assert.Contains(t, s, `userAgent="curl"`, "userAgent label must be present")
+
+	unregister(p)
+}
+
 func TestMetricsPathIgnored(t *testing.T) {
 	e := echo.New()
 	p := NewPrometheus("echo", nil)
