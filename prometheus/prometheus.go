@@ -171,20 +171,24 @@ type PushGateway struct {
 	Job string
 }
 
-// NewPrometheus generates a new set of metrics with a certain subsystem name
-func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsList ...[]*Metric) *Prometheus {
-	var metricsList []*Metric
+// PrometheusConfig defines configuration to use when instantiating a new
+// Prometheus instance. This struct will receive additional members over time
+// so it is strongly recommended to reference fields by name rather than position.
+type PrometheusConfig struct {
+	CustomMetricsList []*Metric
+	Skipper           middleware.Skipper
+}
+
+// NewPrometheusWithConfig creates a Prometheus instance using the provided config
+// struct. It should be viewed as a superset of the older NewPrometheus call; both
+// the skipper and the customMetricsList args can be provided via the config struct.
+func NewPrometheusWithConfig(subsystem string, config *PrometheusConfig) *Prometheus {
+	skipper := config.Skipper
 	if skipper == nil {
 		skipper = middleware.DefaultSkipper
 	}
 
-	if len(customMetricsList) > 1 {
-		panic("Too many args. NewPrometheus( string, <optional []*Metric> ).")
-	} else if len(customMetricsList) == 1 {
-		metricsList = customMetricsList[0]
-	}
-
-	metricsList = append(metricsList, standardMetrics...)
+	metricsList := append(config.CustomMetricsList, standardMetrics...)
 
 	p := &Prometheus{
 		MetricsList: metricsList,
@@ -208,6 +212,22 @@ func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsLi
 	p.registerMetrics(subsystem)
 
 	return p
+}
+
+// NewPrometheus generates a new set of metrics with a certain subsystem name
+func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsList ...[]*Metric) *Prometheus {
+
+	var metricsList []*Metric
+	if len(customMetricsList) > 1 {
+		panic("Too many args. NewPrometheus( string, <optional []*Metric> ).")
+	} else if len(customMetricsList) == 1 {
+		metricsList = customMetricsList[0]
+	}
+
+	return NewPrometheusWithConfig(subsystem, &PrometheusConfig{
+		CustomMetricsList: metricsList,
+		Skipper:           skipper,
+	})
 }
 
 // SetPushGateway sends metrics to a remote pushgateway exposed on pushGatewayURL

@@ -30,6 +30,22 @@ func TestPrometheus_Use(t *testing.T) {
 	unregister(p)
 }
 
+func TestPrometheus_WithConfig(t *testing.T) {
+	e := echo.New()
+	p := NewPrometheusWithConfig("echo", &PrometheusConfig{
+		Skipper: func(c echo.Context) bool {
+			return true
+		},
+	})
+	assert.NotNil(t, p.Skipper, "configured skipper was not added to Prometheus instance")
+	p.Use(e)
+
+	assert.Equal(t, 1, len(e.Routes()), "only one route should be added")
+	assert.NotNil(t, e, "the engine should not be empty")
+	assert.Equal(t, e.Routes()[0].Path, p.MetricsPath, "the path should match the metrics path")
+	unregister(p)
+}
+
 func TestPrometheus_Buckets(t *testing.T) {
 	e := echo.New()
 	p := NewPrometheus("echo", nil)
