@@ -156,6 +156,39 @@ func TestMiddlewareConfig_LabelFuncs(t *testing.T) {
 	assert.Contains(t, body, `echo_request_duration_seconds_count{code="200",host="example.com",method="overridden_GET",scheme="http",url="/ok"} 1`)
 }
 
+func TestMiddlewareConfig_AfterNextFuncs(t *testing.T) {
+	e := echo.New()
+
+	customRegistry := prometheus.NewRegistry()
+	customCounter := prometheus.NewCounter(
+		prometheus.CounterOpts{
+			Name: "custom_requests_total",
+			Help: "How many HTTP requests processed, partitioned by status code and HTTP method.",
+		},
+	)
+	if err := customRegistry.Register(customCounter); err != nil {
+		t.Fatal(err)
+	}
+
+	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{
+		AfterNext: func(c echo.Context, err error) {
+			customCounter.Inc() // use our custom metric in middleware
+		},
+		Registerer: customRegistry,
+	}))
+	e.GET("/metrics", NewHandlerWithConfig(HandlerConfig{Gatherer: customRegistry}))
+
+	e.GET("/ok", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, "OK")
+	})
+
+	assert.Equal(t, http.StatusOK, request(e, "/ok"))
+
+	body, code := requestBody(e, "/metrics")
+	assert.Equal(t, http.StatusOK, code)
+	assert.Contains(t, body, `custom_requests_total 1`)
+}
+
 func requestBody(e *echo.Echo, path string) (string, int) {
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	rec := httptest.NewRecorder()
