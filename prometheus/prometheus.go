@@ -138,6 +138,7 @@ type Metric struct {
 }
 
 // Prometheus contains the metrics gathered by the instance and its path
+// Deprecated: use echoprometheus package instead
 type Prometheus struct {
 	reqCnt               *prometheus.CounterVec
 	reqDur, reqSz, resSz *prometheus.HistogramVec
@@ -172,6 +173,7 @@ type PushGateway struct {
 }
 
 // NewPrometheus generates a new set of metrics with a certain subsystem name
+// Deprecated: use echoprometheus package instead
 func NewPrometheus(subsystem string, skipper middleware.Skipper, customMetricsList ...[]*Metric) *Prometheus {
 	var metricsList []*Metric
 	if skipper == nil {
@@ -297,6 +299,7 @@ func (p *Prometheus) startPushTicker() {
 }
 
 // NewMetric associates prometheus.Collector based on Metric.Type
+// Deprecated: use echoprometheus package instead
 func NewMetric(m *Metric, subsystem string) prometheus.Collector {
 	var metric prometheus.Collector
 	switch m.Type {

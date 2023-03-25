@@ -1,15 +1,11 @@
 PKG := "github.com/labstack/echo-contrib"
 PKG_LIST := $(shell go list ${PKG}/...)
 
-tag:
-	@git tag `grep -P '^\tversion = ' echo.go|cut -f2 -d'"'`
-	@git tag|grep -v ^v
-
 .DEFAULT_GOAL := check
 check: lint vet race ## Check project
 
 init:
-	@go get -u honnef.co/go/tools/cmd/staticcheck@latest
+	@go install honnef.co/go/tools/cmd/staticcheck@latest
 
 format: ## Format the source code
 	@find ./ -type f -name "*.go" -exec gofmt -w {} \;
@@ -32,6 +28,6 @@ benchmark: ## Run benchmarks
 help: ## Display this help screen
 	@grep -h -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "\033[36m%-30s\033[0m %s\n", $$1, $$2}'
 
-goversion ?= "1.16"
-test_version: ## Run tests inside Docker with given version (defaults to 1.15 oldest supported). Example: make test_version goversion=1.15
+goversion ?= "1.18"
+test_version: ## Run tests inside Docker with given version (defaults to 1.18 oldest supported). Example: make test_version goversion=1.18
 	@docker run --rm -it -v $(shell pwd):/project golang:$(goversion) /bin/sh -c "cd /project && make race"
