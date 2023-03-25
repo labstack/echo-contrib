@@ -129,6 +129,33 @@ func TestMetricsForErrors(t *testing.T) {
 	assert.Contains(t, body, `myapp_requests_total{code="502",host="example.com",method="GET",url="/handler_for_error"} 1`)
 }
 
+func TestMiddlewareConfig_LabelFuncs(t *testing.T) {
+	e := echo.New()
+	customRegistry := prometheus.NewRegistry()
+	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{
+		LabelFuncs: map[string]LabelValueFunc{
+			"scheme": func(c echo.Context, err error) string { // additional custom label
+				return c.Scheme()
+			},
+			"method": func(c echo.Context, err error) string { // overrides default 'method' label value
+				return "overridden_" + c.Request().Method
+			},
+		},
+		Registerer: customRegistry,
+	}))
+	e.GET("/metrics", NewHandlerWithConfig(HandlerConfig{Gatherer: customRegistry}))
+
+	e.GET("/ok", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, "OK")
+	})
+
+	assert.Equal(t, http.StatusOK, request(e, "/ok"))
+
+	body, code := requestBody(e, "/metrics")
+	assert.Equal(t, http.StatusOK, code)
+	assert.Contains(t, body, `echo_request_duration_seconds_count{code="200",host="example.com",method="overridden_GET",scheme="http",url="/ok"} 1`)
+}
+
 func requestBody(e *echo.Echo, path string) (string, int) {
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	rec := httptest.NewRecorder()
