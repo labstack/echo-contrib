@@ -72,6 +72,12 @@ type MiddlewareConfig struct {
 	// it replaces default one.
 	LabelFuncs map[string]LabelValueFunc
 
+	// HistogramOptsFunc allows to change options for metrics of type histogram before metric is registered to Registerer
+	HistogramOptsFunc func(opts prometheus.HistogramOpts) prometheus.HistogramOpts
+
+	// CounterOptsFunc allows to change options for metrics of type counter before metric is registered to Registerer
+	CounterOptsFunc func(opts prometheus.CounterOpts) prometheus.CounterOpts
+
 	// Registerer sets the prometheus.Registerer instance the middleware will register these metrics with.
 	// Defaults to: prometheus.DefaultRegisterer
 	Registerer prometheus.Registerer
@@ -164,16 +170,26 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	if conf.Registerer == nil {
 		conf.Registerer = prometheus.DefaultRegisterer
 	}
+	if conf.CounterOptsFunc == nil {
+		conf.CounterOptsFunc = func(opts prometheus.CounterOpts) prometheus.CounterOpts {
+			return opts
+		}
+	}
+	if conf.HistogramOptsFunc == nil {
+		conf.HistogramOptsFunc = func(opts prometheus.HistogramOpts) prometheus.HistogramOpts {
+			return opts
+		}
+	}
 
 	labelNames, customValuers := createLabels(conf.LabelFuncs)
 
 	requestCount := prometheus.NewCounterVec(
-		prometheus.CounterOpts{
+		conf.CounterOptsFunc(prometheus.CounterOpts{
 			Namespace: conf.Namespace,
 			Subsystem: conf.Subsystem,
 			Name:      "requests_total",
 			Help:      "How many HTTP requests processed, partitioned by status code and HTTP method.",
-		},
+		}),
 		labelNames,
 	)
 	if err := conf.Registerer.Register(requestCount); err != nil {
@@ -181,14 +197,14 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	requestDuration := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
+		conf.HistogramOptsFunc(prometheus.HistogramOpts{
 			Namespace: conf.Namespace,
 			Subsystem: conf.Subsystem,
 			Name:      "request_duration_seconds",
 			Help:      "The HTTP request latencies in seconds.",
 			// Here, we use the prometheus defaults which are for ~10s request length max: []float64{.005, .01, .025, .05, .1, .25, .5, 1, 2.5, 5, 10}
 			Buckets: prometheus.DefBuckets,
-		},
+		}),
 		labelNames,
 	)
 	if err := conf.Registerer.Register(requestDuration); err != nil {
@@ -196,13 +212,13 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	responseSize := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
+		conf.HistogramOptsFunc(prometheus.HistogramOpts{
 			Namespace: conf.Namespace,
 			Subsystem: conf.Subsystem,
 			Name:      "response_size_bytes",
 			Help:      "The HTTP response sizes in bytes.",
 			Buckets:   sizeBuckets,
-		},
+		}),
 		labelNames,
 	)
 	if err := conf.Registerer.Register(responseSize); err != nil {
@@ -210,13 +226,13 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	}
 
 	requestSize := prometheus.NewHistogramVec(
-		prometheus.HistogramOpts{
+		conf.HistogramOptsFunc(prometheus.HistogramOpts{
 			Namespace: conf.Namespace,
 			Subsystem: conf.Subsystem,
 			Name:      "request_size_bytes",
 			Help:      "The HTTP request sizes in bytes.",
 			Buckets:   sizeBuckets,
-		},
+		}),
 		labelNames,
 	)
 	if err := conf.Registerer.Register(requestSize); err != nil {
