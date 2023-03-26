@@ -366,8 +366,23 @@ func computeApproximateRequestSize(r *http.Request) int {
 	return s
 }
 
-// RunPushGatewayCollector starts pushing collected metrics and waits for it context to complete or ErrorHandler to return error.
-func RunPushGatewayCollector(ctx context.Context, config PushGatewayConfig) error {
+// RunPushGatewayGatherer starts pushing collected metrics and waits for it context to complete or ErrorHandler to return error.
+//
+// Example:
+// ```
+//
+//	go func() {
+//		config := echoprometheus.PushGatewayConfig{
+//			PushGatewayURL: "https://host:9080",
+//			PushInterval:   10 * time.Millisecond,
+//		}
+//		if err := echoprometheus.RunPushGatewayGatherer(context.Background(), config); !errors.Is(err, context.Canceled) {
+//			log.Fatal(err)
+//		}
+//	}()
+//
+// ```
+func RunPushGatewayGatherer(ctx context.Context, config PushGatewayConfig) error {
 	if config.PushGatewayURL == "" {
 		return errors.New("push gateway URL is missing")
 	}
@@ -409,8 +424,14 @@ func RunPushGatewayCollector(ctx context.Context, config PushGatewayConfig) erro
 				}
 				continue
 			}
-			if _, err = client.Do(req); err != nil {
+			res, err := client.Do(req)
+			if err != nil {
 				if hErr := config.ErrorHandler(fmt.Errorf("error sending to push gateway: %w", err)); hErr != nil {
+					return hErr
+				}
+			}
+			if res.StatusCode != http.StatusOK {
+				if hErr := config.ErrorHandler(echo.NewHTTPError(res.StatusCode, "post metrics request did not succeed")); hErr != nil {
 					return hErr
 				}
 			}

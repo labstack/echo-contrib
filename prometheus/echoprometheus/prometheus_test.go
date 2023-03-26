@@ -2,6 +2,7 @@ package echoprometheus
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"fmt"
 	"github.com/labstack/echo/v4"
@@ -11,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 )
 
 func TestCustomRegistryMetrics(t *testing.T) {
@@ -216,6 +218,31 @@ func TestMiddlewareConfig_AfterNextFuncs(t *testing.T) {
 	body, code := requestBody(e, "/metrics")
 	assert.Equal(t, http.StatusOK, code)
 	assert.Contains(t, body, `custom_requests_total 1`)
+}
+
+func TestRunPushGatewayGatherer(t *testing.T) {
+	receivedMetrics := false
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		receivedMetrics = true
+		w.WriteHeader(http.StatusBadRequest)
+		w.Write([]byte("OK"))
+	}))
+	defer svr.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 250*time.Millisecond)
+	defer cancel()
+
+	config := PushGatewayConfig{
+		PushGatewayURL: svr.URL,
+		PushInterval:   10 * time.Millisecond,
+		ErrorHandler: func(err error) error {
+			return err // to force return after first request
+		},
+	}
+	err := RunPushGatewayGatherer(ctx, config)
+
+	assert.EqualError(t, err, "code=400, message=post metrics request did not succeed")
+	assert.True(t, receivedMetrics)
 }
 
 func requestBody(e *echo.Echo, path string) (string, int) {
