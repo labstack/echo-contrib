@@ -192,8 +192,11 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		}),
 		labelNames,
 	)
+	// we do not allow skipping or replacing default collector but developer can use `conf.CounterOptsFunc` to rename
+	// this middleware default collector, so they can have own collector with that same name.
+	// and we treat all register errors as returnable failures
 	if err := conf.Registerer.Register(requestCount); err != nil {
-		return nil, err // TODO: maybe skip returning part when err is prometheus.AlreadyRegisteredError
+		return nil, err
 	}
 
 	requestDuration := prometheus.NewHistogramVec(
@@ -253,13 +256,12 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			reqSz := computeApproximateRequestSize(c.Request())
 
 			start := conf.timeNow()
-
 			err := next(c)
+			elapsed := float64(conf.timeNow().Sub(start)) / float64(time.Second)
+
 			if conf.AfterNext != nil {
 				conf.AfterNext(c, err)
 			}
-
-			elapsed := float64(conf.timeNow().Sub(start)) / float64(time.Second)
 
 			url := c.Path() // contains route path ala `/users/:id`
 			if url == "" {
