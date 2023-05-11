@@ -187,6 +187,35 @@ func TestMiddlewareConfig_HistogramOptsFunc(t *testing.T) {
 	assert.Contains(t, body, `echo_request_size_bytes_count{code="200",host="example.com",method="GET",url="/ok"} 1`)
 }
 
+func TestMiddlewareConfig_CounterOptsFunc(t *testing.T) {
+	e := echo.New()
+	customRegistry := prometheus.NewRegistry()
+	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{
+		CounterOptsFunc: func(opts prometheus.CounterOpts) prometheus.CounterOpts {
+			if opts.Name == "requests_total" {
+				opts.ConstLabels = prometheus.Labels{"my_const": "123"}
+			}
+			return opts
+		},
+		Registerer: customRegistry,
+	}))
+	e.GET("/metrics", NewHandlerWithConfig(HandlerConfig{Gatherer: customRegistry}))
+
+	e.GET("/ok", func(c echo.Context) error {
+		return c.JSON(http.StatusOK, "OK")
+	})
+
+	assert.Equal(t, http.StatusOK, request(e, "/ok"))
+
+	body, code := requestBody(e, "/metrics")
+	assert.Equal(t, http.StatusOK, code)
+
+	// has const label
+	assert.Contains(t, body, `echo_requests_total{code="200",host="example.com",method="GET",my_const="123",url="/ok"} 1`)
+	// does not have const label
+	assert.Contains(t, body, `echo_request_size_bytes_count{code="200",host="example.com",method="GET",url="/ok"} 1`)
+}
+
 func TestMiddlewareConfig_AfterNextFuncs(t *testing.T) {
 	e := echo.New()
 

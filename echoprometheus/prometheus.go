@@ -1,26 +1,5 @@
 /*
 Package echoprometheus provides middleware to add Prometheus metrics.
-
-Example:
-```
-package main
-import (
-
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo-contrib/prometheus/echoprometheus"
-
-)
-
-	func main() {
-	    e := echo.New()
-	    // Enable metrics middleware
-		e.Use(echoprometheus.NewMiddleware("myapp"))
-		e.GET("/metrics", echoprometheus.NewHandler())
-
-	    e.Logger.Fatal(e.Start(":1323"))
-	}
-
-```
 */
 package echoprometheus
 
