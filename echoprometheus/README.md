@@ -30,7 +30,7 @@ Older `prometheus` middleware
     p.Use(e)
 ```
 
-Never `echoprometheus` middleware
+With the new `echoprometheus` middleware
 ```go
     e := echo.New()
     e.Use(echoprometheus.NewMiddleware("myapp")) // register middleware to gather metrics from requests
@@ -39,10 +39,10 @@ Never `echoprometheus` middleware
 
 ## Replacement for `Prometheus.MetricsList` field, `NewMetric(m *Metric, subsystem string)` function and `prometheus.Metric` struct
 
-`NewMetric` function allows you to create custom metrics to be registed with default Prometheus registry. Never middleware does
-not provide any abstractions for metrics and guides you to use native Prometheus metrics and register them by yourself.
+The `NewMetric` function allowed to create custom metrics with the old `prometheus` middleware. This helper is no longer available 
+to avoid the added complexity. It is recommended to use native Prometheus metrics and register those yourself.
 
-This can be done newer middleware as follows:
+This can be done now as follows:
 ```go
 	e := echo.New()
 
@@ -71,7 +71,7 @@ This can be done newer middleware as follows:
 `MetricsPath` was used to skip metrics own route from Prometheus metrics. Skipping is no longer done and requests to Prometheus
 route will be included in gathered metrics.
 
-This feature can be restored like that:
+To restore the old behaviour the `/metrics` path needs to be excluded from counting using the Skipper function:
 ```go
 conf := echoprometheus.MiddlewareConfig{
     Skipper: func(c echo.Context) bool {
@@ -83,9 +83,9 @@ e.Use(echoprometheus.NewMiddlewareWithConfig(conf))
 
 ## Replacement for `Prometheus.RequestCounterURLLabelMappingFunc` and `Prometheus.RequestCounterHostLabelMappingFunc`
 
-These function fields were used to define how "URL" or "Host" attribute in Prometheus metric lines were created.
+These function fields were used to define how "URL" or "Host" attribute in Prometheus metric lines are created.
 
-These can be substituted by using `LabelFuncs`:
+These can now be substituted by using `LabelFuncs`:
 ```go
 	e.Use(echoprometheus.NewMiddlewareWithConfig(echoprometheus.MiddlewareConfig{
 		LabelFuncs: map[string]echoprometheus.LabelValueFunc{
@@ -108,7 +108,7 @@ Will produce Prometheus line as
 
 ## Replacement for `Metric.Buckets` and modifying default metrics
 
-Middleware register by default following metrics:
+The `echoprometheus` middleware registers the following metrics by default:
 
 * Counter `requests_total`
 * Histogram `request_duration_seconds`
