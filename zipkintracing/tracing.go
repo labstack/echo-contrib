@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2017 LabStack and Echo contributors
+
 package zipkintracing
 
 import (
@@ -66,7 +69,7 @@ func TraceFunc(c echo.Context, spanName string, spanTags Tags, tracer *zipkin.Tr
 	return finishSpan
 }
 
-//TraceProxy middleware that traces reverse proxy
+// TraceProxy middleware that traces reverse proxy
 func TraceProxy(tracer *zipkin.Tracer) echo.MiddlewareFunc {
 	config := DefaultTraceProxyConfig
 	config.Tracer = tracer
@@ -111,7 +114,7 @@ func TraceProxyWithConfig(config TraceProxyConfig) echo.MiddlewareFunc {
 	}
 }
 
-//TraceServer middleware that traces server calls
+// TraceServer middleware that traces server calls
 func TraceServer(tracer *zipkin.Tracer) echo.MiddlewareFunc {
 	config := DefaultTraceServerConfig
 	config.Tracer = tracer
