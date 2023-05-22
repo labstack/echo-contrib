@@ -5,7 +5,7 @@ package main
 
 import (
 	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo-contrib/prometheus/echoprometheus"
+	"github.com/labstack/echo-contrib/echoprometheus"
 )
 
 func main() {
