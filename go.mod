@@ -1,6 +1,6 @@
 module github.com/labstack/echo-contrib
 
-go 1.17
+go 1.18
 
 require (
 	github.com/casbin/casbin/v2 v2.64.0
