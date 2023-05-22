@@ -1,3 +1,6 @@
+// SPDX-License-Identifier: MIT
+// SPDX-FileCopyrightText: © 2017 LabStack and Echo contributors
+
 /* Package casbin provides middleware to enable ACL, RBAC, ABAC authorization support.
 
 Simple example:
