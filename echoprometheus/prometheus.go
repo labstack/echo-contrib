@@ -82,6 +82,9 @@ type HandlerConfig struct {
 	// Gatherer sets the prometheus.Gatherer instance the middleware will use when generating the metric endpoint handler.
 	// Defaults to: prometheus.DefaultGatherer
 	Gatherer prometheus.Gatherer
+
+	// DisableCompression disables compression of the HTTP response, even if requested by the client.
+	DisableCompression bool
 }
 
 // PushGatewayConfig contains the configuration for pushing to a Prometheus push gateway.
@@ -115,7 +118,9 @@ func NewHandlerWithConfig(config HandlerConfig) echo.HandlerFunc {
 	if config.Gatherer == nil {
 		config.Gatherer = prometheus.DefaultGatherer
 	}
-	h := promhttp.HandlerFor(config.Gatherer, promhttp.HandlerOpts{})
+	h := promhttp.HandlerFor(config.Gatherer, promhttp.HandlerOpts{
+		DisableCompression: config.DisableCompression,
+	})
 
 	if r, ok := config.Gatherer.(prometheus.Registerer); ok {
 		h = promhttp.InstrumentMetricHandler(r, h)
