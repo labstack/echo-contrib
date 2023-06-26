@@ -115,7 +115,7 @@ func NewHandlerWithConfig(config HandlerConfig) echo.HandlerFunc {
 	if config.Gatherer == nil {
 		config.Gatherer = prometheus.DefaultGatherer
 	}
-	h := promhttp.HandlerFor(config.Gatherer, promhttp.HandlerOpts{})
+	h := promhttp.HandlerFor(config.Gatherer, promhttp.HandlerOpts{DisableCompression: true})
 
 	if r, ok := config.Gatherer.(prometheus.Registerer); ok {
 		h = promhttp.InstrumentMetricHandler(r, h)
