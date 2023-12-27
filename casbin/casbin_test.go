@@ -57,19 +57,19 @@ func TestPathWildcard(t *testing.T) {
 		return c.String(http.StatusOK, "test")
 	})
 
-	testRequest(t, h, "bob", "/dataset2/resource1", "GET", http.StatusOK)
-	testRequest(t, h, "bob", "/dataset2/resource1", "POST", http.StatusOK)
-	testRequest(t, h, "bob", "/dataset2/resource1", "DELETE", http.StatusOK)
-	testRequest(t, h, "bob", "/dataset2/resource2", "GET", http.StatusOK)
-	testRequest(t, h, "bob", "/dataset2/resource2", "POST", http.StatusForbidden)
-	testRequest(t, h, "bob", "/dataset2/resource2", "DELETE", http.StatusForbidden)
+	testRequest(t, h, "bob", "/dataset2/resource1", echo.GET, http.StatusOK)
+	testRequest(t, h, "bob", "/dataset2/resource1", echo.POST, http.StatusOK)
+	testRequest(t, h, "bob", "/dataset2/resource1", echo.DELETE, http.StatusOK)
+	testRequest(t, h, "bob", "/dataset2/resource2", echo.GET, http.StatusOK)
+	testRequest(t, h, "bob", "/dataset2/resource2", echo.POST, http.StatusForbidden)
+	testRequest(t, h, "bob", "/dataset2/resource2", echo.DELETE, http.StatusForbidden)
 
-	testRequest(t, h, "bob", "/dataset2/folder1/item1", "GET", http.StatusForbidden)
-	testRequest(t, h, "bob", "/dataset2/folder1/item1", "POST", http.StatusOK)
-	testRequest(t, h, "bob", "/dataset2/folder1/item1", "DELETE", http.StatusForbidden)
-	testRequest(t, h, "bob", "/dataset2/folder1/item2", "GET", http.StatusForbidden)
-	testRequest(t, h, "bob", "/dataset2/folder1/item2", "POST", http.StatusOK)
-	testRequest(t, h, "bob", "/dataset2/folder1/item2", "DELETE", http.StatusForbidden)
+	testRequest(t, h, "bob", "/dataset2/folder1/item1", echo.GET, http.StatusForbidden)
+	testRequest(t, h, "bob", "/dataset2/folder1/item1", echo.POST, http.StatusOK)
+	testRequest(t, h, "bob", "/dataset2/folder1/item1", echo.DELETE, http.StatusForbidden)
+	testRequest(t, h, "bob", "/dataset2/folder1/item2", echo.GET, http.StatusForbidden)
+	testRequest(t, h, "bob", "/dataset2/folder1/item2", echo.POST, http.StatusOK)
+	testRequest(t, h, "bob", "/dataset2/folder1/item2", echo.DELETE, http.StatusForbidden)
 }
 
 func TestRBAC(t *testing.T) {
@@ -79,22 +79,22 @@ func TestRBAC(t *testing.T) {
 	})
 
 	// cathy can access all /dataset1/* resources via all methods because it has the dataset1_admin role.
-	testRequest(t, h, "cathy", "/dataset1/item", "GET", http.StatusOK)
-	testRequest(t, h, "cathy", "/dataset1/item", "POST", http.StatusOK)
-	testRequest(t, h, "cathy", "/dataset1/item", "DELETE", http.StatusOK)
-	testRequest(t, h, "cathy", "/dataset2/item", "GET", http.StatusForbidden)
-	testRequest(t, h, "cathy", "/dataset2/item", "POST", http.StatusForbidden)
-	testRequest(t, h, "cathy", "/dataset2/item", "DELETE", http.StatusForbidden)
+	testRequest(t, h, "cathy", "/dataset1/item", echo.GET, http.StatusOK)
+	testRequest(t, h, "cathy", "/dataset1/item", echo.POST, http.StatusOK)
+	testRequest(t, h, "cathy", "/dataset1/item", echo.DELETE, http.StatusOK)
+	testRequest(t, h, "cathy", "/dataset2/item", echo.GET, http.StatusForbidden)
+	testRequest(t, h, "cathy", "/dataset2/item", echo.POST, http.StatusForbidden)
+	testRequest(t, h, "cathy", "/dataset2/item", echo.DELETE, http.StatusForbidden)
 
 	// delete all roles on user cathy, so cathy cannot access any resources now.
 	ce.DeleteRolesForUser("cathy")
 
-	testRequest(t, h, "cathy", "/dataset1/item", "GET", http.StatusForbidden)
-	testRequest(t, h, "cathy", "/dataset1/item", "POST", http.StatusForbidden)
-	testRequest(t, h, "cathy", "/dataset1/item", "DELETE", http.StatusForbidden)
-	testRequest(t, h, "cathy", "/dataset2/item", "GET", http.StatusForbidden)
-	testRequest(t, h, "cathy", "/dataset2/item", "POST", http.StatusForbidden)
-	testRequest(t, h, "cathy", "/dataset2/item", "DELETE", http.StatusForbidden)
+	testRequest(t, h, "cathy", "/dataset1/item", echo.GET, http.StatusForbidden)
+	testRequest(t, h, "cathy", "/dataset1/item", echo.POST, http.StatusForbidden)
+	testRequest(t, h, "cathy", "/dataset1/item", echo.DELETE, http.StatusForbidden)
+	testRequest(t, h, "cathy", "/dataset2/item", echo.GET, http.StatusForbidden)
+	testRequest(t, h, "cathy", "/dataset2/item", echo.POST, http.StatusForbidden)
+	testRequest(t, h, "cathy", "/dataset2/item", echo.DELETE, http.StatusForbidden)
 }
 
 func TestEnforceError(t *testing.T) {
@@ -103,7 +103,7 @@ func TestEnforceError(t *testing.T) {
 		return c.String(http.StatusOK, "test")
 	})
 
-	testRequest(t, h, "cathy", "/dataset1/item", "GET", http.StatusInternalServerError)
+	testRequest(t, h, "cathy", "/dataset1/item", echo.GET, http.StatusInternalServerError)
 }
 
 func TestCustomUserGetter(t *testing.T) {
@@ -118,7 +118,7 @@ func TestCustomUserGetter(t *testing.T) {
 	h := MiddlewareWithConfig(cnf)(func(c echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
-	testRequest(t, h, "cathy", "/dataset1/item", "GET", http.StatusForbidden)
+	testRequest(t, h, "cathy", "/dataset1/item", echo.GET, http.StatusForbidden)
 }
 
 func TestUserGetterError(t *testing.T) {
@@ -133,7 +133,7 @@ func TestUserGetterError(t *testing.T) {
 	h := MiddlewareWithConfig(cnf)(func(c echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
-	testRequest(t, h, "cathy", "/dataset1/item", "GET", http.StatusForbidden)
+	testRequest(t, h, "cathy", "/dataset1/item", echo.GET, http.StatusForbidden)
 }
 
 func TestCustomEnforceHandler(t *testing.T) {
@@ -155,9 +155,9 @@ func TestCustomEnforceHandler(t *testing.T) {
 	h := MiddlewareWithConfig(cnf)(func(c echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
-	testRequest(t, h, "bob", "/dataset2/resource1", "GET", http.StatusOK)
-	testRequest(t, h, "bob", "/user/alice", "PATCH", http.StatusForbidden)
-	testRequest(t, h, "bob", "/user/bob", "PATCH", http.StatusOK)
+	testRequest(t, h, "bob", "/dataset2/resource1", echo.GET, http.StatusOK)
+	testRequest(t, h, "bob", "/user/alice", echo.PATCH, http.StatusForbidden)
+	testRequest(t, h, "bob", "/user/bob", echo.PATCH, http.StatusOK)
 }
 
 func TestCustomSkipper(t *testing.T) {
@@ -171,6 +171,6 @@ func TestCustomSkipper(t *testing.T) {
 	h := MiddlewareWithConfig(cnf)(func(c echo.Context) error {
 		return c.String(http.StatusOK, "test")
 	})
-	testRequest(t, h, "alice", "/dataset1/resource1", "GET", http.StatusOK)
+	testRequest(t, h, "alice", "/dataset1/resource1", echo.GET, http.StatusOK)
 	testRequest(t, h, "alice", "/dataset1/resource2", echo.POST, http.StatusForbidden)
 }
