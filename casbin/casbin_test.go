@@ -159,3 +159,18 @@ func TestCustomEnforceHandler(t *testing.T) {
 	testRequest(t, h, "bob", "/user/alice", "PATCH", http.StatusForbidden)
 	testRequest(t, h, "bob", "/user/bob", "PATCH", http.StatusOK)
 }
+
+func TestCustomSkipper(t *testing.T) {
+	ce, _ := casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")
+	cnf := Config{
+		Skipper: func(c echo.Context) bool {
+			return c.Request().URL.Path == "/dataset1/resource1"
+		},
+		Enforcer: ce,
+	}
+	h := MiddlewareWithConfig(cnf)(func(c echo.Context) error {
+		return c.String(http.StatusOK, "test")
+	})
+	testRequest(t, h, "alice", "/dataset1/resource1", "GET", http.StatusOK)
+	testRequest(t, h, "alice", "/dataset1/resource2", echo.POST, http.StatusForbidden)
+}
