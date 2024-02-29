@@ -75,7 +75,7 @@ type MiddlewareConfig struct {
 	timeNow func() time.Time
 
 	// If SetPathFor404 is false, all 404 responses will have the same `url` label and thus won't generate new metrics
-	SetPathFor404 bool
+	SetPathFor404 *bool
 }
 
 type LabelValueFunc func(c echo.Context, err error) string
@@ -132,11 +132,16 @@ func NewHandlerWithConfig(config HandlerConfig) echo.HandlerFunc {
 
 // NewMiddleware creates new instance of middleware using Prometheus default registry.
 func NewMiddleware(subsystem string) echo.MiddlewareFunc {
-	return NewMiddlewareWithConfig(MiddlewareConfig{Subsystem: subsystem, SetPathFor404: true})
+	return NewMiddlewareWithConfig(MiddlewareConfig{Subsystem: subsystem})
 }
 
 // NewMiddlewareWithConfig creates new instance of middleware using given configuration.
 func NewMiddlewareWithConfig(config MiddlewareConfig) echo.MiddlewareFunc {
+	// for backwared compatiblity
+	if config.SetPathFor404 == nil {
+		setPathFor404 := true
+		config.SetPathFor404 = &setPathFor404
+	}
 	mw, err := config.ToMiddleware()
 	if err != nil {
 		panic(err)
@@ -270,10 +275,9 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			values[0] = strconv.Itoa(status)
 			values[1] = c.Request().Method
 			values[2] = c.Request().Host
-			if status != http.StatusNotFound || conf.SetPathFor404 {
+			if status != http.StatusNotFound || (conf.SetPathFor404 != nil && *conf.SetPathFor404) {
 				values[3] = url
 			}
-			values[3] = url
 			for _, cv := range customValuers {
 				values[cv.index] = cv.valueFunc(c, err)
 			}

@@ -277,6 +277,21 @@ func TestRunPushGatewayGatherer(t *testing.T) {
 	assert.True(t, receivedMetrics)
 }
 
+func TestSetPathFor404(t *testing.T) {
+	e := echo.New()
+
+	setPathFor404 := false
+	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{SetPathFor404: &setPathFor404}))
+	e.GET("/metrics", NewHandler())
+
+	assert.Equal(t, http.StatusNotFound, request(e, "/nonExistentPath"))
+
+	s, code := requestBody(e, "/metrics")
+	assert.Equal(t, http.StatusOK, code)
+	assert.Contains(t, s, `echo_request_duration_seconds_count{code="404",host="example.com",method="GET",url=""} 1`)
+	assert.NotContains(t, s, `echo_request_duration_seconds_count{code="404",host="example.com",method="GET",url="/nonExistentPath"} 1`)
+}
+
 func requestBody(e *echo.Echo, path string) (string, int) {
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	rec := httptest.NewRecorder()
