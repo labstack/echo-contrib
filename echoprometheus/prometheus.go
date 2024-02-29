@@ -275,7 +275,8 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			values[0] = strconv.Itoa(status)
 			values[1] = c.Request().Method
 			values[2] = c.Request().Host
-			if status != http.StatusNotFound || (conf.SetPathFor404 != nil && *conf.SetPathFor404) {
+			// as of Echo v4.10.1 path is empty for 404 cases (when router did not find any matching routes)
+			if c.Path() != "" || (conf.SetPathFor404 != nil && *conf.SetPathFor404) {
 				values[3] = url
 			}
 			for _, cv := range customValuers {
