@@ -73,6 +73,9 @@ type MiddlewareConfig struct {
 	AfterNext func(c echo.Context, err error)
 
 	timeNow func() time.Time
+
+	// If SetPathFor404 is false, all 404 responses will have the same `url` label and thus won't generate new metrics
+	SetPathFor404 bool
 }
 
 type LabelValueFunc func(c echo.Context, err error) string
@@ -267,6 +270,9 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			values[0] = strconv.Itoa(status)
 			values[1] = c.Request().Method
 			values[2] = c.Request().Host
+			if !(status == http.StatusNotFound && conf.SetPathFor404) {
+				values[3] = url
+			}
 			values[3] = url
 			for _, cv := range customValuers {
 				values[cv.index] = cv.valueFunc(c, err)
