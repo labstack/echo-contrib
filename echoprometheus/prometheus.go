@@ -137,11 +137,6 @@ func NewMiddleware(subsystem string) echo.MiddlewareFunc {
 
 // NewMiddlewareWithConfig creates new instance of middleware using given configuration.
 func NewMiddlewareWithConfig(config MiddlewareConfig) echo.MiddlewareFunc {
-	// for backwared compatiblity
-	if config.SetPathFor404 == nil {
-		setPathFor404 := true
-		config.SetPathFor404 = &setPathFor404
-	}
 	mw, err := config.ToMiddleware()
 	if err != nil {
 		panic(err)
@@ -151,6 +146,12 @@ func NewMiddlewareWithConfig(config MiddlewareConfig) echo.MiddlewareFunc {
 
 // ToMiddleware converts configuration to middleware or returns an error.
 func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
+	// for backwared compatiblity
+	if conf.SetPathFor404 == nil {
+		setPathFor404 := true
+		conf.SetPathFor404 = &setPathFor404
+	}
+
 	if conf.timeNow == nil {
 		conf.timeNow = time.Now
 	}
