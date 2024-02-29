@@ -132,7 +132,7 @@ func NewHandlerWithConfig(config HandlerConfig) echo.HandlerFunc {
 
 // NewMiddleware creates new instance of middleware using Prometheus default registry.
 func NewMiddleware(subsystem string) echo.MiddlewareFunc {
-	return NewMiddlewareWithConfig(MiddlewareConfig{Subsystem: subsystem})
+	return NewMiddlewareWithConfig(MiddlewareConfig{Subsystem: subsystem, SetPathFor404: true})
 }
 
 // NewMiddlewareWithConfig creates new instance of middleware using given configuration.
