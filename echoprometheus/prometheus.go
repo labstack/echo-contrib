@@ -270,7 +270,7 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			values[0] = strconv.Itoa(status)
 			values[1] = c.Request().Method
 			values[2] = c.Request().Host
-			if !(status == http.StatusNotFound && conf.SetPathFor404) {
+			if status != http.StatusNotFound || conf.SetPathFor404 {
 				values[3] = url
 			}
 			values[3] = url
