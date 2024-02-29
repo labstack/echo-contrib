@@ -74,7 +74,8 @@ type MiddlewareConfig struct {
 
 	timeNow func() time.Time
 
-	// If SetPathFor404 is false, all 404 responses will have the same `url` label and thus won't generate new metrics
+	// If SetPathFor404 is false, all 404 responses (due to non-matching route) will have the same `url` label and
+	// thus won't generate new metrics.
 	SetPathFor404 *bool
 }
 
@@ -276,7 +277,7 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			values[0] = strconv.Itoa(status)
 			values[1] = c.Request().Method
 			values[2] = c.Request().Host
-			// as of Echo v4.10.1 path is empty for 404 cases (when router did not find any matching routes)
+			// as of Echo v4.10.1 an empty c.Path() means the router did not find any matching routes (404)
 			if c.Path() != "" || (conf.SetPathFor404 != nil && *conf.SetPathFor404) {
 				values[3] = url
 			}
