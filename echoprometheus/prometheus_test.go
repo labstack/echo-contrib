@@ -278,12 +278,12 @@ func TestRunPushGatewayGatherer(t *testing.T) {
 	unregisterDefaults("myapp")
 }
 
-// TestSetPathFor404Logic tests when the 404 response is due to no matching route, the url is not included in the metric
+// TestSetPathFor404NoMatchingRoute tests that the url is not included in the metric when
+// the 404 response is due to no matching route
 func TestSetPathFor404NoMatchingRoute(t *testing.T) {
 	e := echo.New()
 
-	setPathFor404 := false
-	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{SetPathFor404: &setPathFor404, Subsystem: defaultSubsystem}))
+	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{DoNotUseURLFor404: true, Subsystem: defaultSubsystem}))
 	e.GET("/metrics", NewHandler())
 
 	assert.Equal(t, http.StatusNotFound, request(e, "/nonExistentPath"))
@@ -296,13 +296,12 @@ func TestSetPathFor404NoMatchingRoute(t *testing.T) {
 	unregisterDefaults(defaultSubsystem)
 }
 
-// TestSetPathFor404Logic tests when the 404 response is due to logic, the url is included in the metric
+// TestSetPathFor404Logic tests that the url is included in the metric when the 404 response is due to logic
 func TestSetPathFor404Logic(t *testing.T) {
 	unregisterDefaults("myapp")
 	e := echo.New()
 
-	setPathFor404 := false
-	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{SetPathFor404: &setPathFor404, Subsystem: defaultSubsystem}))
+	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{DoNotUseURLFor404: true, Subsystem: defaultSubsystem}))
 	e.GET("/metrics", NewHandler())
 
 	e.GET("/sample", echo.NotFoundHandler)
