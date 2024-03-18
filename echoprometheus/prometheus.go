@@ -74,9 +74,9 @@ type MiddlewareConfig struct {
 
 	timeNow func() time.Time
 
-	// If DoNotUseURLFor404 is true, all 404 responses (due to non-matching route) will have the same `url` label and
+	// If DoNotUseRequestPathFor404 is true, all 404 responses (due to non-matching route) will have the same `url` label and
 	// thus won't generate new metrics.
-	DoNotUseURLFor404 bool
+	DoNotUseRequestPathFor404 bool
 }
 
 type LabelValueFunc func(c echo.Context, err error) string
@@ -250,7 +250,7 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			}
 
 			url := c.Path() // contains route path ala `/users/:id`
-			if url == "" {
+			if url == "" && !conf.DoNotUseRequestPathFor404 {
 				// as of Echo v4.10.1 path is empty for 404 cases (when router did not find any matching routes)
 				// in this case we use actual path from request to have some distinction in Prometheus
 				url = c.Request().URL.Path
@@ -271,10 +271,7 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			values[0] = strconv.Itoa(status)
 			values[1] = c.Request().Method
 			values[2] = c.Request().Host
-			// as of Echo v4.10.1 an empty c.Path() means the router did not find any matching routes (404)
-			if c.Path() != "" || !conf.DoNotUseURLFor404 {
-				values[3] = url
-			}
+			values[3] = url
 			for _, cv := range customValuers {
 				values[cv.index] = cv.valueFunc(c, err)
 			}

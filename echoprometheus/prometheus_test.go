@@ -283,7 +283,7 @@ func TestRunPushGatewayGatherer(t *testing.T) {
 func TestSetPathFor404NoMatchingRoute(t *testing.T) {
 	e := echo.New()
 
-	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{DoNotUseURLFor404: true, Subsystem: defaultSubsystem}))
+	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{DoNotUseRequestPathFor404: true, Subsystem: defaultSubsystem}))
 	e.GET("/metrics", NewHandler())
 
 	assert.Equal(t, http.StatusNotFound, request(e, "/nonExistentPath"))
@@ -301,7 +301,7 @@ func TestSetPathFor404Logic(t *testing.T) {
 	unregisterDefaults("myapp")
 	e := echo.New()
 
-	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{DoNotUseURLFor404: true, Subsystem: defaultSubsystem}))
+	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{DoNotUseRequestPathFor404: true, Subsystem: defaultSubsystem}))
 	e.GET("/metrics", NewHandler())
 
 	e.GET("/sample", echo.NotFoundHandler)
