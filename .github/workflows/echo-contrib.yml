@@ -59,7 +59,7 @@ jobs:
           path: previous
 
       - name: Checkout Code (New)
-        uses: actions/checkout@v3
+        uses: actions/checkout@v4
         with:
           path: new
 
