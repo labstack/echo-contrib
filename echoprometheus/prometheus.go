@@ -73,6 +73,10 @@ type MiddlewareConfig struct {
 	AfterNext func(c echo.Context, err error)
 
 	timeNow func() time.Time
+
+	// If DoNotUseRequestPathFor404 is true, all 404 responses (due to non-matching route) will have the same `url` label and
+	// thus won't generate new metrics.
+	DoNotUseRequestPathFor404 bool
 }
 
 type LabelValueFunc func(c echo.Context, err error) string
@@ -246,7 +250,7 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			}
 
 			url := c.Path() // contains route path ala `/users/:id`
-			if url == "" {
+			if url == "" && !conf.DoNotUseRequestPathFor404 {
 				// as of Echo v4.10.1 path is empty for 404 cases (when router did not find any matching routes)
 				// in this case we use actual path from request to have some distinction in Prometheus
 				url = c.Request().URL.Path
