@@ -213,6 +213,9 @@ func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 				}
 			}()
 
+			// inject Jaeger context into request header
+			config.Tracer.Inject(sp.Context(), opentracing.HTTPHeaders, opentracing.HTTPHeadersCarrier(c.Request().Header))
+
 			// call next middleware / controller
 			err = next(c)
 			if err != nil {
