@@ -11,17 +11,19 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
+	"net/http"
+	"sort"
+	"strconv"
+	"strings"
+	"time"
+
 	"github.com/labstack/echo/v4"
 	"github.com/labstack/echo/v4/middleware"
 	"github.com/labstack/gommon/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/expfmt"
-	"io"
-	"net/http"
-	"sort"
-	"strconv"
-	"time"
 )
 
 const (
@@ -268,12 +270,12 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			}
 
 			values := make([]string, len(labelNames))
-			values[0] = strconv.Itoa(status)
-			values[1] = c.Request().Method
-			values[2] = c.Request().Host
-			values[3] = url
+			values[0] = strings.ToValidUTF8(strconv.Itoa(status), "�")
+			values[1] = strings.ToValidUTF8(c.Request().Method, "�")
+			values[2] = strings.ToValidUTF8(c.Request().Host, "�")
+			values[3] = strings.ToValidUTF8(url, "�")
 			for _, cv := range customValuers {
-				values[cv.index] = cv.valueFunc(c, err)
+				values[cv.index] = strings.ToValidUTF8(cv.valueFunc(c, err), "�")
 			}
 
 			requestDuration.WithLabelValues(values...).Observe(elapsed)
