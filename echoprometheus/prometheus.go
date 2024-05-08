@@ -270,15 +270,22 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			}
 
 			values := make([]string, len(labelNames))
-			values[0] = strings.ToValidUTF8(strconv.Itoa(status), "�")
-			values[1] = strings.ToValidUTF8(c.Request().Method, "�")
-			values[2] = strings.ToValidUTF8(c.Request().Host, "�")
-			values[3] = strings.ToValidUTF8(url, "�")
+			values[0] = strconv.Itoa(status)
+			values[1] = c.Request().Method
+			values[2] = c.Request().Host
+			values[3] = url
 			for _, cv := range customValuers {
 				values[cv.index] = strings.ToValidUTF8(cv.valueFunc(c, err), "�")
 			}
 
-			requestDuration.WithLabelValues(values...).Observe(elapsed)
+			// The first metric set is done this way to ensure
+			// that the values all contain valid UTF8.  If not, it
+			// returns, if they are then .WithLabelValues is fine.
+			if obs, tmpErr := requestDuration.GetMetricWithLabelValues(values...); tmpErr == nil {
+				obs.Observe(elapsed)
+			} else {
+				return fmt.Errorf("requestDuration observation failed, err: %w", tmpErr)
+			}
 			requestCount.WithLabelValues(values...).Inc()
 			requestSize.WithLabelValues(values...).Observe(float64(reqSz))
 			responseSize.WithLabelValues(values...).Observe(float64(c.Response().Size))
