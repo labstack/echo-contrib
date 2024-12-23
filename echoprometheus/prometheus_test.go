@@ -316,6 +316,21 @@ func TestSetPathFor404Logic(t *testing.T) {
 	unregisterDefaults(defaultSubsystem)
 }
 
+func TestInvalidUTF8PathIsFixed(t *testing.T) {
+	e := echo.New()
+
+	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{Subsystem: defaultSubsystem}))
+	e.GET("/metrics", NewHandler())
+
+	assert.Equal(t, http.StatusNotFound, request(e, "/../../WEB-INF/web.xml\xc0\x80.jsp"))
+
+	s, code := requestBody(e, "/metrics")
+	assert.Equal(t, http.StatusOK, code)
+	assert.Contains(t, s, fmt.Sprintf(`%s_request_duration_seconds_count{code="404",host="example.com",method="GET",url="/../../WEB-INF/web.xml�.jsp"} 1`, defaultSubsystem))
+
+	unregisterDefaults(defaultSubsystem)
+}
+
 func requestBody(e *echo.Echo, path string) (string, int) {
 	req := httptest.NewRequest(http.MethodGet, path, nil)
 	rec := httptest.NewRecorder()
