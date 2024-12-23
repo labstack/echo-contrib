@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -271,15 +272,30 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			values[0] = strconv.Itoa(status)
 			values[1] = c.Request().Method
 			values[2] = c.Request().Host
-			values[3] = url
+			values[3] = strings.ToValidUTF8(url, "\uFFFD") // \uFFFD is � https://en.wikipedia.org/wiki/Specials_(Unicode_block)#Replacement_character
 			for _, cv := range customValuers {
 				values[cv.index] = cv.valueFunc(c, err)
 			}
-
-			requestDuration.WithLabelValues(values...).Observe(elapsed)
-			requestCount.WithLabelValues(values...).Inc()
-			requestSize.WithLabelValues(values...).Observe(float64(reqSz))
-			responseSize.WithLabelValues(values...).Observe(float64(c.Response().Size))
+			if obs, err := requestDuration.GetMetricWithLabelValues(values...); err == nil {
+				obs.Observe(elapsed)
+			} else {
+				return fmt.Errorf("failed to label request duration metric with values, err: %w", err)
+			}
+			if obs, err := requestCount.GetMetricWithLabelValues(values...); err == nil {
+				obs.Inc()
+			} else {
+				return fmt.Errorf("failed to label request count metric with values, err: %w", err)
+			}
+			if obs, err := requestSize.GetMetricWithLabelValues(values...); err == nil {
+				obs.Observe(float64(reqSz))
+			} else {
+				return fmt.Errorf("failed to label request size metric with values, err: %w", err)
+			}
+			if obs, err := responseSize.GetMetricWithLabelValues(values...); err == nil {
+				obs.Observe(float64(c.Response().Size))
+			} else {
+				return fmt.Errorf("failed to label response size metric with values, err: %w", err)
+			}
 
 			return err
 		}
