@@ -78,6 +78,9 @@ type MiddlewareConfig struct {
 	// If DoNotUseRequestPathFor404 is true, all 404 responses (due to non-matching route) will have the same `url` label and
 	// thus won't generate new metrics.
 	DoNotUseRequestPathFor404 bool
+
+	// StatusCodeResolver resolves err & context into http status code. Default is to use context.Response().Status
+	StatusCodeResolver func(c echo.Context, err error) int
 }
 
 type LabelValueFunc func(c echo.Context, err error) string
@@ -166,6 +169,9 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		conf.HistogramOptsFunc = func(opts prometheus.HistogramOpts) prometheus.HistogramOpts {
 			return opts
 		}
+	}
+	if conf.StatusCodeResolver == nil {
+		conf.StatusCodeResolver = defaultStatusResolver
 	}
 
 	labelNames, customValuers := createLabels(conf.LabelFuncs)
@@ -257,16 +263,7 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 				url = c.Request().URL.Path
 			}
 
-			status := c.Response().Status
-			if err != nil {
-				var httpError *echo.HTTPError
-				if errors.As(err, &httpError) {
-					status = httpError.Code
-				}
-				if status == 0 || status == http.StatusOK {
-					status = http.StatusInternalServerError
-				}
-			}
+			status := conf.StatusCodeResolver(c, err)
 
 			values := make([]string, len(labelNames))
 			values[0] = strconv.Itoa(status)
@@ -457,4 +454,19 @@ func WriteGatheredMetrics(writer io.Writer, gatherer prometheus.Gatherer) error 
 		}
 	}
 	return nil
+}
+
+// defaultStatusResolver resolves http status code by referencing echo.HTTPError.
+func defaultStatusResolver(c echo.Context, err error) int {
+	status := c.Response().Status
+	if err != nil {
+		var httpError *echo.HTTPError
+		if errors.As(err, &httpError) {
+			status = httpError.Code
+		}
+		if status == 0 || status == http.StatusOK {
+			status = http.StatusInternalServerError
+		}
+	}
+	return status
 }
