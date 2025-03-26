@@ -5,7 +5,6 @@
 package circuitbreaker
 
 import (
-	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -119,8 +118,6 @@ func (cb *CircuitBreaker) AllowRequest() bool {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
 
-	fmt.Println("AR-", cb.state)
-
 	return cb.state != StateOpen
 }
 
@@ -128,8 +125,6 @@ func (cb *CircuitBreaker) AllowRequest() bool {
 func (cb *CircuitBreaker) ReportSuccess() {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
-
-	fmt.Println("SUCC-", cb.state)
 
 	cb.successCount++
 	if cb.state == StateHalfOpen && cb.successCount >= cb.successReset {
@@ -146,8 +141,6 @@ func (cb *CircuitBreaker) ReportFailure() {
 
 	cb.failureCount++
 	cb.lastFailure = time.Now()
-
-	fmt.Println("FA-", cb.state)
 
 	if cb.failureCount >= cb.threshold {
 		cb.state = StateOpen
