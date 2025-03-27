@@ -25,19 +25,19 @@ import (
 
 func main() {
 
+	e := echo.New()
+
 	cbConfig := circuitbreaker.CircuitBreakerConfig{
 		Threshold:    5,                // Number of failures before opening circuit
 		Timeout:      10 * time.Second, // Time to stay open before transitioning to half-open
-		ResetTimeout: 5 * time.Second,  // Time before allowing a test request in half-open state
 		SuccessReset: 3,                // Number of successes needed to move back to closed state
 	}
 
-	e := echo.New()
-	e.Use(circuitbreaker.CircuitBreakerMiddleware(cbConfig))
+	cbMiddleware := circuitbreaker.NewCircuitBreaker(cbConfig)
 
 	e.GET("/example", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Success")
-	})
+	}, circuitbreaker.CircuitBreakerMiddleware(cbMiddleware))
 
 	// Start server
 	e.Logger.Fatal(e.Start(":8081"))

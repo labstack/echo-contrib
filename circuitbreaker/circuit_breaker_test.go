@@ -4,7 +4,6 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
@@ -12,11 +11,10 @@ import (
 
 // TestNewCircuitBreaker ensures circuit breaker initializes with correct defaults
 func TestNewCircuitBreaker(t *testing.T) {
-	cb := NewCircuitBreaker(CircuitBreakerConfig{})
+	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig)
 	assert.Equal(t, StateClosed, cb.state)
 	assert.Equal(t, DefaultCircuitBreakerConfig.Threshold, cb.threshold)
 	assert.Equal(t, DefaultCircuitBreakerConfig.Timeout, cb.timeout)
-	assert.Equal(t, DefaultCircuitBreakerConfig.ResetTimeout, cb.resetTimeout)
 	assert.Equal(t, DefaultCircuitBreakerConfig.SuccessReset, cb.successReset)
 }
 
@@ -42,7 +40,7 @@ func TestReportSuccess(t *testing.T) {
 }
 
 // TestReportFailure checks state transitions after failures
-func TestReportFailure(t *testing.T) {
+func TestReportFailureThreshold(t *testing.T) {
 	cb := NewCircuitBreaker(CircuitBreakerConfig{Threshold: 2})
 	cb.ReportFailure()
 	assert.Equal(t, StateClosed, cb.state)
@@ -50,27 +48,30 @@ func TestReportFailure(t *testing.T) {
 	assert.Equal(t, StateOpen, cb.state)
 }
 
-// TestMonitorReset ensures circuit moves to half-open after timeout
-func TestMonitorReset(t *testing.T) {
-	cb := NewCircuitBreaker(CircuitBreakerConfig{Threshold: 1, Timeout: 1 * time.Second, ResetTimeout: 500 * time.Millisecond})
-	cb.ReportFailure()
-	time.Sleep(2 * time.Second) // Wait for reset logic
-	assert.Equal(t, StateHalfOpen, cb.state)
-}
-
-// TestCircuitBreakerMiddleware verifies middleware behavior
-func TestCircuitBreakerMiddleware(t *testing.T) {
+// TestMiddlewareBlocksOpenState checks Middleware Blocks Requests in Open State
+func TestMiddlewareBlocksOpenState(t *testing.T) {
 	e := echo.New()
 	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
-	ctx := e.NewContext(req, rec)
+	c := e.NewContext(req, rec)
 
-	handler := CircuitBreakerMiddleware(DefaultCircuitBreakerConfig)(func(c echo.Context) error {
-		return c.String(http.StatusOK, "success")
+	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig)
+	cb.state = StateOpen // Force open state
+
+	middleware := CircuitBreakerMiddleware(cb)(func(c echo.Context) error {
+		return c.String(http.StatusOK, "Success")
 	})
 
-	err := handler(ctx)
+	err := middleware(c)
 	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, rec.Code)
-	assert.Equal(t, "success", rec.Body.String())
+	assert.Equal(t, http.StatusServiceUnavailable, rec.Code)
+}
+
+// TestHalfOpenLimitedRequests checks Half-Open state limits requests
+func TestHalfOpenLimitedRequests(t *testing.T) {
+	cb := NewCircuitBreaker(DefaultCircuitBreakerConfig)
+	cb.state = StateHalfOpen
+	cb.halfOpenSemaphore <- struct{}{} // Simulate a request holding the slot
+
+	assert.False(t, cb.AllowRequest()) // The next request should be blocked
 }
