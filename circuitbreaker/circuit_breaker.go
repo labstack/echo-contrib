@@ -1,6 +1,3 @@
-// SPDX-License-Identifier: MIT
-// SPDX-FileCopyrightText: © 2017 LabStack and Echo contributors
-
 package circuitbreaker
 
 import (
@@ -13,181 +10,401 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
-// CircuitBreakerState represents the state of the circuit breaker
-type CircuitBreakerState string
+// State represents the state of the circuit breaker
+type State string
 
 const (
-	StateClosed   CircuitBreakerState = "closed"    // Normal operation
-	StateOpen     CircuitBreakerState = "open"      // Requests are blocked
-	StateHalfOpen CircuitBreakerState = "half-open" // Limited requests allowed to check recovery
+	StateClosed   State = "closed"    // Normal operation
+	StateOpen     State = "open"      // Requests are blocked
+	StateHalfOpen State = "half-open" // Limited requests allowed to check recovery
 )
+
+// Config holds the configurable parameters
+type Config struct {
+	// Failure threshold to trip the circuit
+	FailureThreshold int
+	// Duration circuit stays open before allowing test requests
+	Timeout time.Duration
+	// Success threshold to close the circuit from half-open
+	SuccessThreshold int
+	// Maximum concurrent requests allowed in half-open state
+	HalfOpenMaxConcurrent int
+	// Custom failure detector function (return true if response should count as failure)
+	IsFailure func(c echo.Context, err error) bool
+	// Callbacks for state transitions
+	OnOpen     func(echo.Context) error // Called when circuit opens
+	OnHalfOpen func(echo.Context) error // Called when circuit transitions to half-open
+	OnClose    func(echo.Context) error // Called when circuit closes
+}
+
+// DefaultConfig provides sensible defaults for the circuit breaker
+var DefaultConfig = Config{
+	FailureThreshold:      5,
+	Timeout:               5 * time.Second,
+	SuccessThreshold:      1,
+	HalfOpenMaxConcurrent: 1,
+	IsFailure: func(c echo.Context, err error) bool {
+		return err != nil || c.Response().Status >= http.StatusInternalServerError
+	},
+	OnOpen: func(c echo.Context) error {
+		return c.JSON(http.StatusServiceUnavailable, map[string]interface{}{
+			"error": "service unavailable",
+		})
+	},
+	OnHalfOpen: func(c echo.Context) error {
+		return c.JSON(http.StatusTooManyRequests, map[string]interface{}{
+			"error": "service under recovery",
+		})
+	},
+	OnClose: func(c echo.Context) error {
+		return nil
+	},
+}
 
 // CircuitBreaker implements the circuit breaker pattern
 type CircuitBreaker struct {
-	failureCount      int32                // Count of failures
-	successCount      int32                // Count of successes in half-open state
-	state             CircuitBreakerState  // Current state of circuit breaker
-	mutex             sync.RWMutex         // Protects state transitions
-	threshold         int                  // Max failures before opening circuit
-	timeout           time.Duration        // Duration to stay open before transitioning to half-open
-	successReset      int                  // Successes required to close circuit
-	openExpiry        time.Time            // Time when open state expires
-	ctx               context.Context      // Context for cancellation
-	cancel            context.CancelFunc   // Cancel function for cleanup
-	config            CircuitBreakerConfig // Configuration settings
-	now               func() time.Time     // Function for getting current time (useful for testing)
-	halfOpenSemaphore chan struct{}        // Controls limited requests in half-open state
+	failureCount      int64              // Count of failures (atomic)
+	successCount      int64              // Count of successes in half-open state (atomic)
+	totalRequests     int64              // Count of total requests (atomic)
+	rejectedRequests  int64              // Count of rejected requests (atomic)
+	state             State              // Current state of circuit breaker
+	mutex             sync.RWMutex       // Protects state transitions
+	failureThreshold  int                // Max failures before opening circuit
+	timeout           time.Duration      // Duration to stay open before transitioning to half-open
+	successThreshold  int                // Successes required to close circuit
+	openTimer         *time.Timer        // Timer for state transition from open to half-open
+	ctx               context.Context    // Context for cancellation
+	cancel            context.CancelFunc // Cancel function for cleanup
+	config            Config             // Configuration settings
+	now               func() time.Time   // Function for getting current time (useful for testing)
+	halfOpenSemaphore chan struct{}      // Controls limited requests in half-open state
+	lastStateChange   time.Time          // Time of last state change
 }
 
-// CircuitBreakerConfig holds the configurable parameters
-type CircuitBreakerConfig struct {
-	Threshold    int
-	Timeout      time.Duration
-	SuccessReset int
-	OnOpen       func(ctx echo.Context) error
-	OnHalfOpen   func(ctx echo.Context) error
-	OnClose      func(ctx echo.Context) error
-}
+// New initializes a circuit breaker with the given configuration
+func New(config Config) *CircuitBreaker {
+	// Apply default values for zero values
+	if config.FailureThreshold <= 0 {
+		config.FailureThreshold = DefaultConfig.FailureThreshold
+	}
+	if config.Timeout <= 0 {
+		config.Timeout = DefaultConfig.Timeout
+	}
+	if config.SuccessThreshold <= 0 {
+		config.SuccessThreshold = DefaultConfig.SuccessThreshold
+	}
+	if config.HalfOpenMaxConcurrent <= 0 {
+		config.HalfOpenMaxConcurrent = DefaultConfig.HalfOpenMaxConcurrent
+	}
+	if config.IsFailure == nil {
+		config.IsFailure = DefaultConfig.IsFailure
+	}
+	if config.OnOpen == nil {
+		config.OnOpen = DefaultConfig.OnOpen
+	}
+	if config.OnHalfOpen == nil {
+		config.OnHalfOpen = DefaultConfig.OnHalfOpen
+	}
+	if config.OnClose == nil {
+		config.OnClose = DefaultConfig.OnClose
+	}
 
-// Default configuration values for the circuit breaker
-var DefaultCircuitBreakerConfig = CircuitBreakerConfig{
-	Threshold:    5,
-	Timeout:      5 * time.Second,
-	SuccessReset: 1,
-	OnOpen: func(ctx echo.Context) error {
-		return ctx.JSON(http.StatusServiceUnavailable, map[string]string{"error": "service unavailable"})
-	},
-	OnHalfOpen: func(ctx echo.Context) error {
-		return ctx.JSON(http.StatusTooManyRequests, map[string]string{"error": "service under recovery"})
-	},
-	OnClose: func(ctx echo.Context) error {
-		return ctx.JSON(http.StatusOK, map[string]string{"message": "circuit closed"})
-	},
-}
-
-// NewCircuitBreaker initializes a circuit breaker with the given configuration
-func NewCircuitBreaker(config CircuitBreakerConfig) *CircuitBreaker {
 	ctx, cancel := context.WithCancel(context.Background())
-	cb := &CircuitBreaker{
-		threshold:         config.Threshold,
+	now := time.Now()
+
+	return &CircuitBreaker{
+		failureThreshold:  config.FailureThreshold,
 		timeout:           config.Timeout,
-		successReset:      config.SuccessReset,
+		successThreshold:  config.SuccessThreshold,
 		state:             StateClosed,
 		ctx:               ctx,
 		cancel:            cancel,
 		config:            config,
 		now:               time.Now,
-		halfOpenSemaphore: make(chan struct{}, 1),
-	}
-	go cb.monitor()
-	return cb
-}
-
-// monitor checks the state periodically and transitions if needed
-func (cb *CircuitBreaker) monitor() {
-	ticker := time.NewTicker(1 * time.Second)
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			cb.mutex.Lock()
-			if cb.state == StateOpen && cb.now().After(cb.openExpiry) {
-				cb.state = StateHalfOpen
-				atomic.StoreInt32(&cb.failureCount, 0)
-				atomic.StoreInt32(&cb.successCount, 0)
-				if cb.config.OnHalfOpen != nil {
-					cb.config.OnHalfOpen(nil)
-				}
-			}
-			cb.mutex.Unlock()
-		case <-cb.ctx.Done():
-			return
-		}
+		halfOpenSemaphore: make(chan struct{}, config.HalfOpenMaxConcurrent),
+		lastStateChange:   now,
+		totalRequests:     0,
+		rejectedRequests:  0,
 	}
 }
 
-// Stop cancels the circuit breaker monitoring
+// Stop cancels the circuit breaker and releases resources
 func (cb *CircuitBreaker) Stop() {
-	cb.cancel()
-}
-
-// AllowRequest determines if a request is allowed based on circuit state
-func (cb *CircuitBreaker) AllowRequest() bool {
-	cb.mutex.RLock()
-	defer cb.mutex.RUnlock()
-
-	if cb.state == StateOpen {
-		return false // Block all requests if circuit is open
-	}
-
-	if cb.state == StateHalfOpen {
-		select {
-		case cb.halfOpenSemaphore <- struct{}{}:
-			return true // Allow only one request in half-open state
-		default:
-			return false // Block additional requests
-		}
-	}
-
-	return true // Allow requests if circuit is closed
-}
-
-func (cb *CircuitBreaker) ReportSuccess() {
-	atomic.AddInt32(&cb.successCount, 1)
-
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
 
-	if cb.state == StateHalfOpen && int(atomic.LoadInt32(&cb.successCount)) >= cb.successReset {
+	if cb.openTimer != nil {
+		cb.openTimer.Stop()
+	}
+	cb.cancel()
+}
+
+// GetState returns the current state of the circuit breaker
+func (cb *CircuitBreaker) GetState() State {
+	cb.mutex.RLock()
+	defer cb.mutex.RUnlock()
+	return cb.state
+}
+
+// IsOpen returns true if the circuit is open
+func (cb *CircuitBreaker) IsOpen() bool {
+	return cb.GetState() == StateOpen
+}
+
+// Reset resets the circuit breaker to its initial closed state
+func (cb *CircuitBreaker) Reset() {
+	cb.mutex.Lock()
+	defer cb.mutex.Unlock()
+
+	// Reset counters
+	atomic.StoreInt64(&cb.failureCount, 0)
+	atomic.StoreInt64(&cb.successCount, 0)
+
+	// Reset state
+	cb.state = StateClosed
+	cb.lastStateChange = cb.now()
+
+	// Cancel any pending state transitions
+	if cb.openTimer != nil {
+		cb.openTimer.Stop()
+	}
+}
+
+// ForceOpen forcibly opens the circuit regardless of failure count
+func (cb *CircuitBreaker) ForceOpen() {
+	cb.transitionToOpen()
+}
+
+// ForceClose forcibly closes the circuit regardless of current state
+func (cb *CircuitBreaker) ForceClose() {
+	cb.mutex.Lock()
+	defer cb.mutex.Unlock()
+
+	cb.state = StateClosed
+	cb.lastStateChange = cb.now()
+	atomic.StoreInt64(&cb.failureCount, 0)
+	atomic.StoreInt64(&cb.successCount, 0)
+
+	if cb.openTimer != nil {
+		cb.openTimer.Stop()
+	}
+}
+
+// SetTimeout updates the timeout duration
+func (cb *CircuitBreaker) SetTimeout(timeout time.Duration) {
+	cb.mutex.Lock()
+	defer cb.mutex.Unlock()
+
+	cb.timeout = timeout
+}
+
+// transitionToOpen changes state to open and schedules transition to half-open
+func (cb *CircuitBreaker) transitionToOpen() {
+	cb.mutex.Lock()
+	defer cb.mutex.Unlock()
+
+	if cb.state != StateOpen {
+		cb.state = StateOpen
+		cb.lastStateChange = cb.now()
+
+		// Stop existing timer if any
+		if cb.openTimer != nil {
+			cb.openTimer.Stop()
+		}
+
+		// Schedule transition to half-open after timeout
+		cb.openTimer = time.AfterFunc(cb.timeout, func() {
+			cb.transitionToHalfOpen()
+		})
+
+		// Reset failure counter
+		atomic.StoreInt64(&cb.failureCount, 0)
+	}
+}
+
+// transitionToHalfOpen changes state from open to half-open
+func (cb *CircuitBreaker) transitionToHalfOpen() {
+	cb.mutex.Lock()
+	defer cb.mutex.Unlock()
+
+	if cb.state == StateOpen {
+		cb.state = StateHalfOpen
+		cb.lastStateChange = cb.now()
+
+		// Reset counters
+		atomic.StoreInt64(&cb.failureCount, 0)
+		atomic.StoreInt64(&cb.successCount, 0)
+
+		// Empty the semaphore channel
+		select {
+		case <-cb.halfOpenSemaphore:
+		default:
+		}
+	}
+}
+
+// transitionToClosed changes state from half-open to closed
+func (cb *CircuitBreaker) transitionToClosed() {
+	cb.mutex.Lock()
+	defer cb.mutex.Unlock()
+
+	if cb.state == StateHalfOpen {
 		cb.state = StateClosed
-		atomic.StoreInt32(&cb.failureCount, 0)
-		atomic.StoreInt32(&cb.successCount, 0)
-		if cb.config.OnClose != nil {
-			cb.config.OnClose(nil)
+		cb.lastStateChange = cb.now()
+
+		// Reset counters
+		atomic.StoreInt64(&cb.failureCount, 0)
+		atomic.StoreInt64(&cb.successCount, 0)
+	}
+}
+
+// AllowRequest determines if a request is allowed based on circuit state
+func (cb *CircuitBreaker) AllowRequest() (bool, State) {
+	atomic.AddInt64(&cb.totalRequests, 1)
+
+	cb.mutex.RLock()
+	state := cb.state
+	cb.mutex.RUnlock()
+
+	switch state {
+	case StateOpen:
+		atomic.AddInt64(&cb.rejectedRequests, 1)
+		return false, state
+	case StateHalfOpen:
+		select {
+		case cb.halfOpenSemaphore <- struct{}{}:
+			return true, state
+		default:
+			atomic.AddInt64(&cb.rejectedRequests, 1)
+			return false, state
+		}
+	default: // StateClosed
+		return true, state
+	}
+}
+
+// ReleaseSemaphore releases a slot in the half-open semaphore
+func (cb *CircuitBreaker) ReleaseSemaphore() {
+	select {
+	case <-cb.halfOpenSemaphore:
+	default:
+	}
+}
+
+// ReportSuccess increments success count and closes circuit if threshold met
+func (cb *CircuitBreaker) ReportSuccess() {
+	cb.mutex.RLock()
+	currentState := cb.state
+	cb.mutex.RUnlock()
+
+	if currentState == StateHalfOpen {
+		newSuccessCount := atomic.AddInt64(&cb.successCount, 1)
+		if int(newSuccessCount) >= cb.successThreshold {
+			cb.transitionToClosed()
 		}
 	}
 }
 
 // ReportFailure increments failure count and opens circuit if threshold met
 func (cb *CircuitBreaker) ReportFailure() {
-	atomic.AddInt32(&cb.failureCount, 1)
+	cb.mutex.RLock()
+	currentState := cb.state
+	cb.mutex.RUnlock()
 
-	cb.mutex.Lock()
-	defer cb.mutex.Unlock()
-
-	now := cb.now()
-	switch cb.state {
+	switch currentState {
 	case StateHalfOpen:
-		cb.state = StateOpen
-		cb.openExpiry = now.Add(cb.timeout)
-		atomic.StoreInt32(&cb.failureCount, 0)
+		// In half-open, a single failure trips the circuit
+		cb.transitionToOpen()
 	case StateClosed:
-		if int(atomic.LoadInt32(&cb.failureCount)) >= cb.threshold {
-			cb.state = StateOpen
-			cb.openExpiry = now.Add(cb.timeout)
+		newFailureCount := atomic.AddInt64(&cb.failureCount, 1)
+		if int(newFailureCount) >= cb.failureThreshold {
+			cb.transitionToOpen()
 		}
 	}
 }
 
-// CircuitBreakerMiddleware wraps Echo handlers with circuit breaker logic
-func CircuitBreakerMiddleware(cb *CircuitBreaker) echo.MiddlewareFunc {
+// Metrics returns basic metrics about the circuit breaker
+func (cb *CircuitBreaker) Metrics() map[string]interface{} {
+	return map[string]interface{}{
+		"state":            cb.GetState(),
+		"failures":         atomic.LoadInt64(&cb.failureCount),
+		"successes":        atomic.LoadInt64(&cb.successCount),
+		"totalRequests":    atomic.LoadInt64(&cb.totalRequests),
+		"rejectedRequests": atomic.LoadInt64(&cb.rejectedRequests),
+	}
+}
+
+// GetStateStats returns detailed statistics about the circuit breaker
+func (cb *CircuitBreaker) GetStateStats() map[string]interface{} {
+	state := cb.GetState()
+
+	return map[string]interface{}{
+		"state":            state,
+		"failures":         atomic.LoadInt64(&cb.failureCount),
+		"successes":        atomic.LoadInt64(&cb.successCount),
+		"totalRequests":    atomic.LoadInt64(&cb.totalRequests),
+		"rejectedRequests": atomic.LoadInt64(&cb.rejectedRequests),
+		"lastStateChange":  cb.lastStateChange,
+		"openDuration":     cb.timeout,
+		"failureThreshold": cb.failureThreshold,
+		"successThreshold": cb.successThreshold,
+	}
+}
+
+// HealthHandler returns an Echo handler for checking circuit breaker status
+func (cb *CircuitBreaker) HealthHandler() echo.HandlerFunc {
+	return func(c echo.Context) error {
+		state := cb.GetState()
+
+		data := map[string]interface{}{
+			"state":   state,
+			"healthy": state == StateClosed,
+		}
+
+		if state == StateOpen {
+			return c.JSON(http.StatusServiceUnavailable, data)
+		}
+
+		return c.JSON(http.StatusOK, data)
+	}
+}
+
+// Middleware wraps the echo handler with circuit breaker logic
+func Middleware(cb *CircuitBreaker) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
-			if !cb.AllowRequest() {
-				return cb.config.OnOpen(c) // Return "service unavailable" if circuit is open
+			allowed, state := cb.AllowRequest()
+
+			if !allowed {
+				// Call appropriate callback based on state
+				if state == StateHalfOpen && cb.config.OnHalfOpen != nil {
+					return cb.config.OnHalfOpen(c)
+				} else if state == StateOpen && cb.config.OnOpen != nil {
+					return cb.config.OnOpen(c)
+				}
+				return c.NoContent(http.StatusServiceUnavailable)
 			}
 
-			if cb.state == StateHalfOpen {
-				defer func() { <-cb.halfOpenSemaphore }() // Release the semaphore slot after request
+			// If request allowed in half-open state, ensure semaphore is released
+			halfOpen := state == StateHalfOpen
+			if halfOpen {
+				defer cb.ReleaseSemaphore()
 			}
 
+			// Execute the request
 			err := next(c)
-			status := c.Response().Status
-			if err != nil || status >= http.StatusInternalServerError {
-				cb.ReportFailure() // Register failure if request fails or returns server error
+
+			// Check if the response should be considered a failure
+			if cb.config.IsFailure(c, err) {
+				cb.ReportFailure()
 			} else {
-				cb.ReportSuccess() // Register success if request succeeds
+				cb.ReportSuccess()
+
+				// If transition to closed state just happened, trigger callback
+				if halfOpen && cb.GetState() == StateClosed && cb.config.OnClose != nil {
+					// We don't return this error as it would override the actual response
+					_ = cb.config.OnClose(c)
+				}
 			}
 
 			return err
