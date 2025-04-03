@@ -27,17 +27,17 @@ func main() {
 
 	e := echo.New()
 
-	cbConfig := circuitbreaker.CircuitBreakerConfig{
-		Threshold:    5,                // Number of failures before opening circuit
-		Timeout:      10 * time.Second, // Time to stay open before transitioning to half-open
-		SuccessReset: 3,                // Number of successes needed to move back to closed state
+	cbConfig := circuitbreaker.Config{
+		FailureThreshold: 5,                // Number of failures before opening circuit
+		Timeout:          10 * time.Second, // Time to stay open before transitioning to half-open
+		SuccessThreshold: 3,                // Number of successes needed to move back to closed state
 	}
 
-	cbMiddleware := circuitbreaker.NewCircuitBreaker(cbConfig)
+	cbMiddleware := circuitbreaker.New(cbConfig)
 
 	e.GET("/example", func(c echo.Context) error {
 		return c.String(http.StatusOK, "Success")
-	}, circuitbreaker.CircuitBreakerMiddleware(cbMiddleware))
+	}, circuitbreaker.Middleware(cbMiddleware))
 
 	// Start server
 	e.Logger.Fatal(e.Start(":8081"))
@@ -49,10 +49,3 @@ func main() {
 1. **Closed**: Requests pass through normally. If failures exceed the threshold, it transitions to Open.
 2. **Open**: Requests are blocked. After the timeout period, it moves to Half-Open.
 3. **Half-Open**: Allows a limited number of test requests. If successful, it resets to Closed, otherwise, it goes back to Open.
-
-
-
-
-
-
-
