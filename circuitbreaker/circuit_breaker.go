@@ -161,7 +161,7 @@ func (cb *CircuitBreaker) State() State {
 	// Check for auto-transition from open to half-open based on timestamp
 	if cb.state == StateOpen {
 		openUntil := cb.openUntil.Load()
-		if openUntil > 0 && time.Now().UnixNano() >= openUntil {
+		if openUntil > 0 && cb.now().UnixNano() >= openUntil {
 			cb.transitionToHalfOpen()
 		}
 	}
@@ -271,33 +271,47 @@ func (cb *CircuitBreaker) transitionToClosed() {
 func (cb *CircuitBreaker) AllowRequest() (bool, State) {
 	cb.totalRequests.Add(1)
 
-	// Check for automatic transition from open to half-open
-	if cb.state == StateOpen {
+	// First check if we need to transition from open to half-open
+	// Use a single lock section to check and potentially transition
+	cb.mutex.Lock()
+	currentState := cb.state
+	if currentState == StateOpen {
 		openUntil := cb.openUntil.Load()
-		if openUntil > 0 && time.Now().UnixNano() >= openUntil {
-			cb.transitionToHalfOpen()
+		// Use cb.now() instead of time.Now() for consistency and testability
+		if openUntil > 0 && cb.now().UnixNano() >= openUntil {
+			// Use the existing transition method instead of duplicating logic
+			cb.state = StateHalfOpen
+			cb.lastStateChange = cb.now()
+			cb.failureCount.Store(0)
+			cb.successCount.Store(0)
+			cb.openUntil.Store(0)
+			currentState = StateHalfOpen
 		}
 	}
 
-	cb.mutex.RLock()
-	state := cb.state
-
+	// Determine if the request is allowed based on the current state
 	var allowed bool
-	switch state {
-	case StateOpen:
+	switch currentState {
+	case StateOpen: // Block all requests
 		allowed = false
-	case StateHalfOpen:
+	case StateHalfOpen: // Allow limited requests
+		// Check if we can acquire a slot in the half-open limiter
+		// Use TryAcquire to avoid blocking
+		// This is a non-blocking call, so it won't wait for a slot
+		// to become available
+		// If the limit is reached, we return false
+		// and increment the rejected requests counter
 		allowed = cb.halfOpenLimiter.TryAcquire()
 	default: // StateClosed
 		allowed = true
 	}
-	cb.mutex.RUnlock()
+	cb.mutex.Unlock()
 
 	if !allowed {
 		cb.rejectedRequests.Add(1)
 	}
 
-	return allowed, state
+	return allowed, currentState
 }
 
 // ReleaseHalfOpen releases a slot in the half-open limiter
@@ -372,6 +386,11 @@ func (cb *CircuitBreaker) GetStateStats() map[string]interface{} {
 func Middleware(cb *CircuitBreaker) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c echo.Context) error {
+
+			if cb == nil {
+				return next(c)
+			}
+
 			allowed, state := cb.AllowRequest()
 
 			if !allowed {

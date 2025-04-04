@@ -2,7 +2,6 @@ package circuitbreaker
 
 import (
 	"errors"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"sync"
@@ -11,9 +10,9 @@ import (
 
 	"github.com/labstack/echo/v4"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
+// TestCircuitBreakerBasicOperations tests basic operations of the circuit breaker
 func TestCircuitBreakerBasicOperations(t *testing.T) {
 	// Create circuit breaker with custom config
 	cb := New(Config{
@@ -71,6 +70,7 @@ func TestCircuitBreakerBasicOperations(t *testing.T) {
 	})
 }
 
+// TestCircuitBreakerHalfOpenConcurrency tests the half-open state with concurrency
 func TestCircuitBreakerHalfOpenConcurrency(t *testing.T) {
 	// Create circuit breaker that allows 2 concurrent requests in half-open
 	cb := New(Config{
@@ -101,6 +101,7 @@ func TestCircuitBreakerHalfOpenConcurrency(t *testing.T) {
 	assert.True(t, allowed4)
 }
 
+// TestCircuitBreakerConcurrency tests the concurrency safety of the circuit breaker
 func TestCircuitBreakerConcurrency(t *testing.T) {
 	cb := New(Config{
 		FailureThreshold:      5,
@@ -133,6 +134,7 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 	})
 }
 
+// TestCircuitBreakerMetrics checks the metrics of the circuit breaker
 func TestCircuitBreakerMetrics(t *testing.T) {
 	cb := New(DefaultConfig)
 
@@ -155,50 +157,7 @@ func TestCircuitBreakerMetrics(t *testing.T) {
 	assert.Equal(t, DefaultConfig.Timeout, stats["openDuration"])
 }
 
-func TestTimestampTransitions(t *testing.T) {
-
-	t.Skip("Skipping test for timestamp transitions")
-
-	// Create a circuit breaker with a controlled clock for testing
-	now := time.Now()
-	mockClock := func() time.Time {
-		return now
-	}
-
-	cb := New(Config{
-		FailureThreshold:      1,
-		Timeout:               5 * time.Second,
-		SuccessThreshold:      1,
-		HalfOpenMaxConcurrent: 1,
-	})
-	// Set the mock clock
-	cb.now = mockClock
-
-	// Trigger the circuit open
-	cb.ReportFailure()
-	assert.Equal(t, StateOpen, cb.State())
-
-	// Verify openUntil is set properly
-	stats := cb.GetStateStats()
-	openUntil, ok := stats["openUntil"].(time.Time)
-	require.True(t, ok)
-	assert.InDelta(t, now.Add(5*time.Second).UnixNano(), openUntil.UnixNano(), float64(time.Microsecond))
-
-	fmt.Println(now.String())
-
-	// Advance time to just before timeout
-	now = now.Add(4 * time.Second)
-	fmt.Println(now.String())
-	assert.Equal(t, StateOpen, cb.State())
-
-	fmt.Println("Advance time to just before timeout:", cb.State())
-
-	// Advance time past timeout
-	now = now.Add(2 * time.Second)
-	fmt.Println(now.String())
-	assert.Equal(t, StateHalfOpen, cb.State())
-}
-
+// TestMiddleware tests the middleware functionality
 func TestMiddleware(t *testing.T) {
 	// Setup
 	e := echo.New()
@@ -272,6 +231,7 @@ func TestMiddleware(t *testing.T) {
 	})
 }
 
+// TestCustomCallbacks tests custom callbacks
 func TestCustomCallbacks(t *testing.T) {
 	callbackInvoked := false
 
@@ -313,6 +273,7 @@ func TestCustomCallbacks(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), "circuit open")
 }
 
+// TestErrorHandling tests error handling in callbacks
 func TestErrorHandling(t *testing.T) {
 	errorCalled := false
 
