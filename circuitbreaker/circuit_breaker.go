@@ -18,6 +18,15 @@ const (
 	StateHalfOpen State = "half-open" // Limited requests allowed to check recovery
 )
 
+// MetricsData represents circuit breaker metrics with proper types
+type MetricsData struct {
+	State            State `json:"state"`
+	Failures         int64 `json:"failures"`
+	Successes        int64 `json:"successes"`
+	TotalRequests    int64 `json:"totalRequests"`
+	RejectedRequests int64 `json:"rejectedRequests"`
+}
+
 // Config holds the configurable parameters
 type Config struct {
 	// Failure threshold to trip the circuit
@@ -257,14 +266,18 @@ func (cb *CircuitBreaker) transitionToClosed() {
 	cb.mutex.Lock()
 	defer cb.mutex.Unlock()
 
-	if cb.state == StateHalfOpen {
-		cb.state = StateClosed
-		cb.lastStateChange = cb.now()
-
-		// Reset counters
-		cb.failureCount.Store(0)
-		cb.successCount.Store(0)
+	if cb.state != StateHalfOpen {
+		return
 	}
+
+	// Transition to closed state
+	cb.state = StateClosed
+	cb.lastStateChange = cb.now()
+
+	// Reset counters
+	cb.failureCount.Store(0)
+	cb.successCount.Store(0)
+
 }
 
 // AllowRequest determines if a request is allowed based on circuit state
@@ -277,7 +290,6 @@ func (cb *CircuitBreaker) AllowRequest() (bool, State) {
 	currentState := cb.state
 	if currentState == StateOpen {
 		openUntil := cb.openUntil.Load()
-		// Use cb.now() instead of time.Now() for consistency and testability
 		if openUntil > 0 && cb.now().UnixNano() >= openUntil {
 			// Use the existing transition method instead of duplicating logic
 			cb.state = StateHalfOpen
@@ -348,13 +360,13 @@ func (cb *CircuitBreaker) ReportFailure() {
 }
 
 // Metrics returns basic metrics about the circuit breaker
-func (cb *CircuitBreaker) Metrics() map[string]interface{} {
-	return map[string]interface{}{
-		"state":            cb.State(),
-		"failures":         cb.failureCount.Load(),
-		"successes":        cb.successCount.Load(),
-		"totalRequests":    cb.totalRequests.Load(),
-		"rejectedRequests": cb.rejectedRequests.Load(),
+func (cb *CircuitBreaker) Metrics() MetricsData {
+	return MetricsData{
+		State:            cb.State(),
+		Failures:         cb.failureCount.Load(),
+		Successes:        cb.successCount.Load(),
+		TotalRequests:    cb.totalRequests.Load(),
+		RejectedRequests: cb.rejectedRequests.Load(),
 	}
 }
 

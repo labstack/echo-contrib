@@ -130,7 +130,7 @@ func TestCircuitBreakerConcurrency(t *testing.T) {
 
 		wg.Wait()
 		metrics := cb.Metrics()
-		assert.Equal(t, int64(numRequests), metrics["totalRequests"])
+		assert.Equal(t, int64(numRequests), metrics.TotalRequests)
 	})
 }
 
@@ -146,9 +146,9 @@ func TestCircuitBreakerMetrics(t *testing.T) {
 
 	// Check basic metrics
 	metrics := cb.Metrics()
-	assert.Equal(t, int64(1), metrics["failures"])
-	assert.Equal(t, int64(1), metrics["totalRequests"])
-	assert.Equal(t, StateClosed, metrics["state"])
+	assert.Equal(t, int64(1), metrics.Failures)
+	assert.Equal(t, int64(1), metrics.TotalRequests)
+	assert.Equal(t, StateClosed, metrics.State)
 
 	// Check detailed stats
 	stats := cb.GetStateStats()
@@ -188,8 +188,8 @@ func TestMiddleware(t *testing.T) {
 
 		// Check metrics
 		metrics := cb.Metrics()
-		assert.Equal(t, int64(1), metrics["totalRequests"])
-		assert.Equal(t, int64(0), metrics["failures"])
+		assert.Equal(t, int64(1), metrics.TotalRequests)
+		assert.Equal(t, int64(0), metrics.Failures)
 	})
 
 	t.Run("Failure case", func(t *testing.T) {
@@ -207,8 +207,8 @@ func TestMiddleware(t *testing.T) {
 
 		// Check metrics - failures should be incremented
 		metrics := cb.Metrics()
-		assert.Equal(t, int64(2), metrics["totalRequests"])
-		assert.Equal(t, int64(1), metrics["failures"])
+		assert.Equal(t, int64(2), metrics.TotalRequests)
+		assert.Equal(t, int64(1), metrics.Failures)
 
 		// Force more failures to open the circuit
 		for i := 0; i < DefaultConfig.FailureThreshold-1; i++ {
