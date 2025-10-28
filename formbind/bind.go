@@ -79,7 +79,7 @@ func Bind(dst interface{}, data url.Values) error {
 func parseFieldPathWithGroups(key string, groups map[string]*groupInfo) []interface{} {
 	var parts []interface{}
 	start := 0
-	
+
 	for i := 0; i < len(key); i++ {
 		switch key[i] {
 		case '.':
@@ -91,7 +91,7 @@ func parseFieldPathWithGroups(key string, groups map[string]*groupInfo) []interf
 			if i > start {
 				fieldName := key[start:i]
 				parts = append(parts, fieldName)
-				
+
 				// Find the closing bracket
 				j := i + 1
 				for j < len(key) && key[j] != ']' {
@@ -99,7 +99,7 @@ func parseFieldPathWithGroups(key string, groups map[string]*groupInfo) []interf
 				}
 				if j < len(key) && j > i+1 {
 					groupKey := key[i+1 : j]
-					
+
 					// Look up the group info for this field
 					arrayFieldPath := strings.Join(getStringParts(parts), ".")
 					if group, exists := groups[arrayFieldPath]; exists {
@@ -117,7 +117,7 @@ func parseFieldPathWithGroups(key string, groups map[string]*groupInfo) []interf
 							return []interface{}{}
 						}
 					}
-					
+
 					i = j
 					start = j + 1
 				} else {
@@ -126,11 +126,11 @@ func parseFieldPathWithGroups(key string, groups map[string]*groupInfo) []interf
 			}
 		}
 	}
-	
+
 	if start < len(key) {
 		parts = append(parts, key[start:])
 	}
-	
+
 	return parts
 }
 
@@ -145,21 +145,9 @@ func getStringParts(parts []interface{}) []string {
 	return stringParts
 }
 
-// parseFieldPath parses a field path like "group.items[0].name" into parts.
-// Returns empty slice if path contains invalid indices (negative or too large).
-func parseFieldPath(key string) []interface{} {
-	return parseFieldPathWithGroups(key, nil) // Use legacy behavior when no groups provided
-}
 
-// bindNestedFormField binds a nested form field to the struct.
-func bindNestedFormField(val reflect.Value, typ reflect.Type, key string, values []string) error {
-	parts := parseFieldPath(key)
-	if len(parts) == 0 {
-		// Invalid path, ignore silently
-		return nil
-	}
-	return setValueByParts(val, typ, parts, values[0])
-}
+
+
 
 // bindNestedFormFieldWithGroups binds a nested form field using group-aware parsing
 func bindNestedFormFieldWithGroups(val reflect.Value, typ reflect.Type, key string, values []string, groups map[string]*groupInfo) error {
@@ -173,19 +161,19 @@ func bindNestedFormFieldWithGroups(val reflect.Value, typ reflect.Type, key stri
 
 // groupInfo holds information about array group keys
 type groupInfo struct {
-	keys     []string // distinct keys found (e.g., ["0", "5", "10"])
+	keys     []string       // distinct keys found (e.g., ["0", "5", "10"])
 	keyToIdx map[string]int // mapping from key to array index
 }
 
 // collectArrayGroups analyzes form data to collect array grouping information
 func collectArrayGroups(data map[string][]string) map[string]*groupInfo {
 	groups := make(map[string]*groupInfo)
-	
+
 	for key := range data {
 		if !strings.Contains(key, "[") {
 			continue
 		}
-		
+
 		// Extract array field path and grouping key
 		if arrayField, groupKey := extractArrayGroup(key); arrayField != "" && groupKey != "" {
 			if groups[arrayField] == nil {
@@ -194,7 +182,7 @@ func collectArrayGroups(data map[string][]string) map[string]*groupInfo {
 					keyToIdx: make(map[string]int),
 				}
 			}
-			
+
 			group := groups[arrayField]
 			if _, exists := group.keyToIdx[groupKey]; !exists {
 				group.keyToIdx[groupKey] = len(group.keys)
@@ -202,7 +190,7 @@ func collectArrayGroups(data map[string][]string) map[string]*groupInfo {
 			}
 		}
 	}
-	
+
 	return groups
 }
 
@@ -214,21 +202,21 @@ func extractArrayGroup(key string) (arrayField, groupKey string) {
 	if start == -1 {
 		return "", ""
 	}
-	
+
 	end := strings.Index(key[start:], "]")
 	if end == -1 {
 		return "", ""
 	}
 	end += start
-	
+
 	arrayField = key[:start]
 	groupKey = key[start+1 : end]
-	
+
 	// Validate grouping key (should be reasonable)
 	if len(groupKey) == 0 || len(groupKey) > 20 {
 		return "", ""
 	}
-	
+
 	return arrayField, groupKey
 }
 
@@ -455,12 +443,12 @@ func setTimeField(value string, field reflect.Value) error {
 func setSliceField(value string, field reflect.Value) error {
 	slice := reflect.MakeSlice(field.Type(), 0, 1)
 	elemType := field.Type().Elem()
-	
+
 	elem := reflect.New(elemType).Elem()
 	if err := setWithProperType(elemType.Kind(), value, elem); err != nil {
 		return err
 	}
-	
+
 	slice = reflect.Append(slice, elem)
 	field.Set(slice)
 	return nil
