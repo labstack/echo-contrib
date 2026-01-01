@@ -8,14 +8,15 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/labstack/echo/v4"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/stretchr/testify/assert"
 	"net/http"
 	"net/http/httptest"
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/labstack/echo/v5"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/stretchr/testify/assert"
 )
 
 func TestCustomRegistryMetrics(t *testing.T) {
@@ -71,17 +72,17 @@ func TestMiddlewareConfig_Skipper(t *testing.T) {
 
 	customRegistry := prometheus.NewRegistry()
 	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			hasSuffix := strings.HasSuffix(c.Path(), "ignore")
 			return hasSuffix
 		},
 		Registerer: customRegistry,
 	}))
 
-	e.GET("/test", func(c echo.Context) error {
+	e.GET("/test", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
-	e.GET("/test_ignore", func(c echo.Context) error {
+	e.GET("/test_ignore", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "OK")
 	})
 
@@ -103,7 +104,7 @@ func TestMetricsForErrors(t *testing.T) {
 	e := echo.New()
 	customRegistry := prometheus.NewRegistry()
 	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			return strings.HasSuffix(c.Path(), "ignore")
 		},
 		Subsystem:  "myapp",
@@ -111,13 +112,13 @@ func TestMetricsForErrors(t *testing.T) {
 	}))
 	e.GET("/metrics", NewHandlerWithConfig(HandlerConfig{Gatherer: customRegistry}))
 
-	e.GET("/handler_for_ok", func(c echo.Context) error {
+	e.GET("/handler_for_ok", func(c *echo.Context) error {
 		return c.JSON(http.StatusOK, "OK")
 	})
-	e.GET("/handler_for_nok", func(c echo.Context) error {
+	e.GET("/handler_for_nok", func(c *echo.Context) error {
 		return c.JSON(http.StatusConflict, "NOK")
 	})
-	e.GET("/handler_for_error", func(c echo.Context) error {
+	e.GET("/handler_for_error", func(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadGateway, "BAD")
 	})
 
@@ -139,10 +140,10 @@ func TestMiddlewareConfig_LabelFuncs(t *testing.T) {
 	customRegistry := prometheus.NewRegistry()
 	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{
 		LabelFuncs: map[string]LabelValueFunc{
-			"scheme": func(c echo.Context, err error) string { // additional custom label
+			"scheme": func(c *echo.Context, err error) string { // additional custom label
 				return c.Scheme()
 			},
-			"method": func(c echo.Context, err error) string { // overrides default 'method' label value
+			"method": func(c *echo.Context, err error) string { // overrides default 'method' label value
 				return "overridden_" + c.Request().Method
 			},
 		},
@@ -150,7 +151,7 @@ func TestMiddlewareConfig_LabelFuncs(t *testing.T) {
 	}))
 	e.GET("/metrics", NewHandlerWithConfig(HandlerConfig{Gatherer: customRegistry}))
 
-	e.GET("/ok", func(c echo.Context) error {
+	e.GET("/ok", func(c *echo.Context) error {
 		return c.JSON(http.StatusOK, "OK")
 	})
 
@@ -164,9 +165,12 @@ func TestMiddlewareConfig_LabelFuncs(t *testing.T) {
 func TestMiddlewareConfig_StatusCodeResolver(t *testing.T) {
 	e := echo.New()
 	customRegistry := prometheus.NewRegistry()
-	customResolver := func(c echo.Context, err error) int {
+	customResolver := func(c *echo.Context, err error) int {
 		if err == nil {
-			return c.Response().Status
+			if eResp, uErr := echo.UnwrapResponse(c.Response()); uErr == nil {
+				return eResp.Status
+			}
+			return http.StatusOK
 		}
 		msg := err.Error()
 		if strings.Contains(msg, "NOT FOUND") {
@@ -178,7 +182,7 @@ func TestMiddlewareConfig_StatusCodeResolver(t *testing.T) {
 		return http.StatusInternalServerError
 	}
 	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			return strings.HasSuffix(c.Path(), "ignore")
 		},
 		Subsystem:          "myapp",
@@ -187,19 +191,19 @@ func TestMiddlewareConfig_StatusCodeResolver(t *testing.T) {
 	}))
 	e.GET("/metrics", NewHandlerWithConfig(HandlerConfig{Gatherer: customRegistry}))
 
-	e.GET("/handler_for_ok", func(c echo.Context) error {
+	e.GET("/handler_for_ok", func(c *echo.Context) error {
 		return c.JSON(http.StatusOK, "OK")
 	})
-	e.GET("/handler_for_nok", func(c echo.Context) error {
+	e.GET("/handler_for_nok", func(c *echo.Context) error {
 		return c.JSON(http.StatusConflict, "NOK")
 	})
-	e.GET("/handler_for_not_found", func(c echo.Context) error {
+	e.GET("/handler_for_not_found", func(c *echo.Context) error {
 		return errors.New("NOT FOUND")
 	})
-	e.GET("/handler_for_not_authorized", func(c echo.Context) error {
+	e.GET("/handler_for_not_authorized", func(c *echo.Context) error {
 		return errors.New("NOT Authorized")
 	})
-	e.GET("/handler_for_unknown_error", func(c echo.Context) error {
+	e.GET("/handler_for_unknown_error", func(c *echo.Context) error {
 		return errors.New("i do not know")
 	})
 
@@ -233,7 +237,7 @@ func TestMiddlewareConfig_HistogramOptsFunc(t *testing.T) {
 	}))
 	e.GET("/metrics", NewHandlerWithConfig(HandlerConfig{Gatherer: customRegistry}))
 
-	e.GET("/ok", func(c echo.Context) error {
+	e.GET("/ok", func(c *echo.Context) error {
 		return c.JSON(http.StatusOK, "OK")
 	})
 
@@ -262,7 +266,7 @@ func TestMiddlewareConfig_CounterOptsFunc(t *testing.T) {
 	}))
 	e.GET("/metrics", NewHandlerWithConfig(HandlerConfig{Gatherer: customRegistry}))
 
-	e.GET("/ok", func(c echo.Context) error {
+	e.GET("/ok", func(c *echo.Context) error {
 		return c.JSON(http.StatusOK, "OK")
 	})
 
@@ -292,14 +296,14 @@ func TestMiddlewareConfig_AfterNextFuncs(t *testing.T) {
 	}
 
 	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{
-		AfterNext: func(c echo.Context, err error) {
+		AfterNext: func(c *echo.Context, err error) {
 			customCounter.Inc() // use our custom metric in middleware
 		},
 		Registerer: customRegistry,
 	}))
 	e.GET("/metrics", NewHandlerWithConfig(HandlerConfig{Gatherer: customRegistry}))
 
-	e.GET("/ok", func(c echo.Context) error {
+	e.GET("/ok", func(c *echo.Context) error {
 		return c.JSON(http.StatusOK, "OK")
 	})
 
@@ -362,7 +366,9 @@ func TestSetPathFor404Logic(t *testing.T) {
 	e.Use(NewMiddlewareWithConfig(MiddlewareConfig{DoNotUseRequestPathFor404: true, Subsystem: defaultSubsystem}))
 	e.GET("/metrics", NewHandler())
 
-	e.GET("/sample", echo.NotFoundHandler)
+	e.GET("/sample", func(c *echo.Context) error {
+		return echo.ErrNotFound
+	})
 
 	assert.Equal(t, http.StatusNotFound, request(e, "/sample"))
 

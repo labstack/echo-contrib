@@ -10,16 +10,16 @@ import (
 	"testing"
 
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestMiddleware(t *testing.T) {
 	e := echo.New()
-	req := httptest.NewRequest(echo.GET, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
-	handler := func(c echo.Context) error {
+	handler := func(c *echo.Context) error {
 		sess, _ := Get("test", c)
 		sess.Options.Domain = "labstack.com"
 		sess.Values["foo"] = "bar"
@@ -30,7 +30,7 @@ func TestMiddleware(t *testing.T) {
 	}
 	store := sessions.NewCookieStore([]byte("secret"))
 	config := Config{
-		Skipper: func(c echo.Context) bool {
+		Skipper: func(c *echo.Context) bool {
 			return true
 		},
 		Store: store,
@@ -38,7 +38,9 @@ func TestMiddleware(t *testing.T) {
 
 	// Skipper
 	mw := MiddlewareWithConfig(config)
-	h := mw(echo.NotFoundHandler)
+	h := mw(func(c *echo.Context) error {
+		return echo.ErrNotFound
+	})
 	assert.Error(t, h(c)) // 404
 	assert.Nil(t, c.Get(key))
 
@@ -59,7 +61,7 @@ func TestMiddleware(t *testing.T) {
 
 func TestGetSessionMissingStore(t *testing.T) {
 	e := echo.New()
-	req := httptest.NewRequest(echo.GET, "/", nil)
+	req := httptest.NewRequest(http.MethodGet, "/", nil)
 	rec := httptest.NewRecorder()
 	c := e.NewContext(req, rec)
 	_, err := Get("test", c)
