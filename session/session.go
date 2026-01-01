@@ -8,8 +8,8 @@ import (
 
 	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 )
 
 type (
@@ -36,7 +36,7 @@ var (
 )
 
 // Get returns a named session.
-func Get(name string, c echo.Context) (*sessions.Session, error) {
+func Get(name string, c *echo.Context) (*sessions.Session, error) {
 	s := c.Get(key)
 	if s == nil {
 		return nil, fmt.Errorf("%q session store not found", key)
@@ -64,7 +64,7 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}

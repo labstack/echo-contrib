@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/log"
 	"github.com/stretchr/testify/assert"
@@ -139,15 +139,15 @@ func TestTraceWithDefaultConfig(t *testing.T) {
 	e := echo.New()
 	e.Use(Trace(tracer))
 
-	e.GET("/hello", func(c echo.Context) error {
+	e.GET("/hello", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "world")
 	})
 
-	e.GET("/giveme400", func(c echo.Context) error {
+	e.GET("/giveme400", func(c *echo.Context) error {
 		return echo.NewHTTPError(http.StatusBadRequest, "baaaad request")
 	})
 
-	e.GET("/givemeerror", func(c echo.Context) error {
+	e.GET("/givemeerror", func(c *echo.Context) error {
 		return fmt.Errorf("internal stuff went wrong")
 	})
 
@@ -224,7 +224,7 @@ func TestTraceWithConfigOfBodyDump(t *testing.T) {
 		ComponentName: "EchoTracer",
 		IsBodyDump:    true,
 	}))
-	e.POST("/trace", func(c echo.Context) error {
+	e.POST("/trace", func(c *echo.Context) error {
 		return c.String(200, "Hi")
 	})
 
@@ -262,7 +262,7 @@ func TestTraceWithConfigOfSkip(t *testing.T) {
 	tracer := createMockTracer()
 	e := echo.New()
 	e.Use(TraceWithConfig(TraceConfig{
-		Skipper: func(echo.Context) bool {
+		Skipper: func(*echo.Context) bool {
 			return true
 		},
 		Tracer: tracer,
@@ -296,7 +296,7 @@ func TestTraceWithLimitHTTPBody(t *testing.T) {
 		LimitHTTPBody: true,
 		LimitSize:     10,
 	}))
-	e.POST("/trace", func(c echo.Context) error {
+	e.POST("/trace", func(c *echo.Context) error {
 		return c.String(200, "Hi 123456789012345678901234567890")
 	})
 
@@ -320,7 +320,7 @@ func TestTraceWithoutLimitHTTPBody(t *testing.T) {
 		LimitHTTPBody: false, // disabled
 		LimitSize:     10,
 	}))
-	e.POST("/trace", func(c echo.Context) error {
+	e.POST("/trace", func(c *echo.Context) error {
 		return c.String(200, "Hi 123456789012345678901234567890")
 	})
 
@@ -339,7 +339,7 @@ func TestTraceWithDefaultOperationName(t *testing.T) {
 	e := echo.New()
 	e.Use(Trace(tracer))
 
-	e.GET("/trace", func(c echo.Context) error {
+	e.GET("/trace", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "Hi")
 	})
 
@@ -357,18 +357,16 @@ func TestTraceWithCustomOperationName(t *testing.T) {
 	e.Use(TraceWithConfig(TraceConfig{
 		Tracer:        tracer,
 		ComponentName: "EchoTracer",
-		OperationNameFunc: func(c echo.Context) string {
+		OperationNameFunc: func(c *echo.Context) string {
 			// This is an example of operation name customization
 			// In most cases default formatting is more than enough
 			req := c.Request()
 			opName := "HTTP " + req.Method
 
 			path := c.Path()
-			paramNames := c.ParamNames()
-
-			for _, name := range paramNames {
-				from := ":" + name
-				to := "{" + name + "}"
+			for _, pv := range c.PathValues() {
+				from := ":" + pv.Name
+				to := "{" + pv.Name + "}"
 				path = strings.ReplaceAll(path, from, to)
 			}
 
@@ -376,7 +374,7 @@ func TestTraceWithCustomOperationName(t *testing.T) {
 		},
 	}))
 
-	e.GET("/trace/:traceID/spans/:spanID", func(c echo.Context) error {
+	e.GET("/trace/:traceID/spans/:spanID", func(c *echo.Context) error {
 		return c.String(http.StatusOK, "Hi")
 	})
 

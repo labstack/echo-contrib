@@ -7,8 +7,6 @@ import (
 	"bytes"
 	"io"
 	"net/http"
-
-	"github.com/labstack/echo/v4"
 )
 
 type responseDumper struct {
@@ -18,12 +16,12 @@ type responseDumper struct {
 	buf *bytes.Buffer
 }
 
-func newResponseDumper(resp *echo.Response) *responseDumper {
+func newResponseDumper(resp http.ResponseWriter) *responseDumper {
 	buf := new(bytes.Buffer)
 	return &responseDumper{
-		ResponseWriter: resp.Writer,
+		ResponseWriter: resp,
 
-		mw:  io.MultiWriter(resp.Writer, buf),
+		mw:  io.MultiWriter(resp, buf),
 		buf: buf,
 	}
 }
@@ -34,4 +32,8 @@ func (d *responseDumper) Write(b []byte) (int, error) {
 
 func (d *responseDumper) GetResponse() string {
 	return d.buf.String()
+}
+
+func (d *responseDumper) Unwrap() http.ResponseWriter {
+	return d.ResponseWriter
 }

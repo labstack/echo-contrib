@@ -11,18 +11,20 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
-	"github.com/labstack/gommon/log"
-	"github.com/prometheus/client_golang/prometheus"
-	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"github.com/prometheus/common/expfmt"
 	"io"
 	"net/http"
 	"sort"
 	"strconv"
 	"strings"
 	"time"
+
+	"github.com/labstack/echo-contrib/internal/helpers"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
+	"github.com/labstack/gommon/log"
+	"github.com/prometheus/client_golang/prometheus"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/prometheus/common/expfmt"
 )
 
 const (
@@ -67,11 +69,11 @@ type MiddlewareConfig struct {
 
 	// BeforeNext is callback that is executed before next middleware/handler is called. Useful for case when you have own
 	// metrics that need data to be stored for AfterNext.
-	BeforeNext func(c echo.Context)
+	BeforeNext func(c *echo.Context)
 
 	// AfterNext is callback that is executed after next middleware/handler returns. Useful for case when you have own
 	// metrics that need incremented/observed.
-	AfterNext func(c echo.Context, err error)
+	AfterNext func(c *echo.Context, err error)
 
 	timeNow func() time.Time
 
@@ -80,10 +82,10 @@ type MiddlewareConfig struct {
 	DoNotUseRequestPathFor404 bool
 
 	// StatusCodeResolver resolves err & context into http status code. Default is to use context.Response().Status
-	StatusCodeResolver func(c echo.Context, err error) int
+	StatusCodeResolver func(c *echo.Context, err error) int
 }
 
-type LabelValueFunc func(c echo.Context, err error) string
+type LabelValueFunc func(c *echo.Context, err error) string
 
 // HandlerConfig contains the configuration for creating HTTP handler for metrics.
 type HandlerConfig struct {
@@ -129,7 +131,7 @@ func NewHandlerWithConfig(config HandlerConfig) echo.HandlerFunc {
 		h = promhttp.InstrumentMetricHandler(r, h)
 	}
 
-	return func(c echo.Context) error {
+	return func(c *echo.Context) error {
 		h.ServeHTTP(c.Response(), c.Request())
 		return nil
 	}
@@ -171,7 +173,7 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		}
 	}
 	if conf.StatusCodeResolver == nil {
-		conf.StatusCodeResolver = defaultStatusResolver
+		conf.StatusCodeResolver = helpers.DefaultStatusResolver
 	}
 
 	labelNames, customValuers := createLabels(conf.LabelFuncs)
@@ -203,8 +205,8 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		}),
 		labelNames,
 	)
-	if err := conf.Registerer.Register(requestDuration); err != nil {
-		return nil, err
+	if rErr := conf.Registerer.Register(requestDuration); rErr != nil {
+		return nil, rErr
 	}
 
 	responseSize := prometheus.NewHistogramVec(
@@ -231,12 +233,12 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 		}),
 		labelNames,
 	)
-	if err := conf.Registerer.Register(requestSize); err != nil {
-		return nil, err
+	if rErr := conf.Registerer.Register(requestSize); rErr != nil {
+		return nil, rErr
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			// NB: we do not skip metrics handler path by default. This can be added with custom Skipper but for default
 			// behaviour we measure metrics path request/response metrics also
 			if conf.Skipper != nil && conf.Skipper(c) {
@@ -289,7 +291,9 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 				return fmt.Errorf("failed to label request size metric with values, err: %w", err)
 			}
 			if obs, err := responseSize.GetMetricWithLabelValues(values...); err == nil {
-				obs.Observe(float64(c.Response().Size))
+				if eResp, uErr := echo.UnwrapResponse(c.Response()); uErr == nil {
+					obs.Observe(float64(eResp.Size))
+				}
 			} else {
 				return fmt.Errorf("failed to label response size metric with values, err: %w", err)
 			}
@@ -454,19 +458,4 @@ func WriteGatheredMetrics(writer io.Writer, gatherer prometheus.Gatherer) error 
 		}
 	}
 	return nil
-}
-
-// defaultStatusResolver resolves http status code by referencing echo.HTTPError.
-func defaultStatusResolver(c echo.Context, err error) int {
-	status := c.Response().Status
-	if err != nil {
-		var httpError *echo.HTTPError
-		if errors.As(err, &httpError) {
-			status = httpError.Code
-		}
-		if status == 0 || status == http.StatusOK {
-			status = http.StatusInternalServerError
-		}
-	}
-	return status
 }

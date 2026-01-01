@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"net/http/pprof"
 
-	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v5"
 )
 
 const (
@@ -44,8 +44,8 @@ func Register(e *echo.Echo, prefixOptions ...string) {
 }
 
 func handler(h http.HandlerFunc) echo.HandlerFunc {
-	return func(c echo.Context) error {
-		h.ServeHTTP(c.Response().Writer, c.Request())
+	return func(c *echo.Context) error {
+		h.ServeHTTP(c.Response(), c.Request())
 		return nil
 	}
 }

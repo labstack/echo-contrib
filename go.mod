@@ -1,12 +1,12 @@
 module github.com/labstack/echo-contrib
 
-go 1.24.0
+go 1.25.0
 
 require (
-	github.com/casbin/casbin/v2 v2.134.0
+	github.com/casbin/casbin/v2 v2.135.0
 	github.com/gorilla/context v1.1.2
 	github.com/gorilla/sessions v1.4.0
-	github.com/labstack/echo/v4 v4.13.4
+	github.com/labstack/echo/v5 v5.0.0-20260101135421-ec9232814e7b
 	github.com/labstack/gommon v0.4.2
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/openzipkin/zipkin-go v0.4.3
@@ -37,12 +37,9 @@ require (
 	github.com/valyala/fasttemplate v1.2.2 // indirect
 	go.uber.org/atomic v1.11.0 // indirect
 	go.yaml.in/yaml/v2 v2.4.3 // indirect
-	golang.org/x/crypto v0.45.0 // indirect
-	golang.org/x/net v0.47.0 // indirect
-	golang.org/x/sys v0.38.0 // indirect
-	golang.org/x/text v0.31.0 // indirect
+	golang.org/x/sys v0.39.0 // indirect
 	golang.org/x/time v0.14.0 // indirect
-	google.golang.org/grpc v1.77.0 // indirect
-	google.golang.org/protobuf v1.36.10 // indirect
+	google.golang.org/grpc v1.78.0 // indirect
+	google.golang.org/protobuf v1.36.11 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )

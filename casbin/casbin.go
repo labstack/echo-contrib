@@ -9,7 +9,7 @@ Simple example:
 
 	import (
 		"github.com/casbin/casbin/v2"
-		"github.com/labstack/echo/v4"
+		"github.com/labstack/echo/v5"
 		casbin_mw "github.com/labstack/echo-contrib/casbin"
 	)
 
@@ -28,7 +28,7 @@ Advanced example:
 
 	import (
 		"github.com/casbin/casbin/v2"
-		"github.com/labstack/echo/v4"
+		"github.com/labstack/echo/v5"
 		casbin_mw "github.com/labstack/echo-contrib/casbin"
 	)
 
@@ -49,10 +49,11 @@ package casbin
 
 import (
 	"errors"
-	"github.com/casbin/casbin/v2"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
 	"net/http"
+
+	"github.com/casbin/casbin/v2"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 )
 
 type (
@@ -67,13 +68,13 @@ type (
 
 		// EnforceHandler is custom callback to handle enforcing.
 		// One of Enforcer or EnforceHandler fields is required.
-		EnforceHandler func(c echo.Context, user string) (bool, error)
+		EnforceHandler func(c *echo.Context, user string) (bool, error)
 
 		// Method to get the username - defaults to using basic auth
-		UserGetter func(c echo.Context) (string, error)
+		UserGetter func(c *echo.Context) (string, error)
 
 		// Method to handle errors
-		ErrorHandler func(c echo.Context, internal error, proposedStatus int) error
+		ErrorHandler func(c *echo.Context, internal error, proposedStatus int) error
 	}
 )
 
@@ -81,14 +82,12 @@ var (
 	// DefaultConfig is the default CasbinAuth middleware config.
 	DefaultConfig = Config{
 		Skipper: middleware.DefaultSkipper,
-		UserGetter: func(c echo.Context) (string, error) {
+		UserGetter: func(c *echo.Context) (string, error) {
 			username, _, _ := c.Request().BasicAuth()
 			return username, nil
 		},
-		ErrorHandler: func(c echo.Context, internal error, proposedStatus int) error {
-			err := echo.NewHTTPError(proposedStatus, internal.Error())
-			err.Internal = internal
-			return err
+		ErrorHandler: func(c *echo.Context, internal error, proposedStatus int) error {
+			return echo.NewHTTPError(proposedStatus, internal.Error()).Wrap(internal)
 		},
 	}
 )
@@ -119,13 +118,13 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 		config.ErrorHandler = DefaultConfig.ErrorHandler
 	}
 	if config.EnforceHandler == nil {
-		config.EnforceHandler = func(c echo.Context, user string) (bool, error) {
+		config.EnforceHandler = func(c *echo.Context, user string) (bool, error) {
 			return config.Enforcer.Enforce(user, c.Request().URL.Path, c.Request().Method)
 		}
 	}
 
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
-		return func(c echo.Context) error {
+		return func(c *echo.Context) error {
 			if config.Skipper(c) {
 				return next(c)
 			}

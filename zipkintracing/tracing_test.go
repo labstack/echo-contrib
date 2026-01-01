@@ -5,8 +5,8 @@ package zipkintracing
 
 import (
 	"encoding/json"
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo/v4/middleware"
+	"github.com/labstack/echo/v5"
+	"github.com/labstack/echo/v5/middleware"
 	"github.com/openzipkin/zipkin-go"
 	zipkinhttp "github.com/openzipkin/zipkin-go/middleware/http"
 	"github.com/openzipkin/zipkin-go/propagation/b3"
@@ -161,7 +161,7 @@ func TestTraceProxy(t *testing.T) {
 	e := echo.New()
 	c := e.NewContext(req, rec)
 	mw := TraceProxy(tracer)
-	h := mw(func(c echo.Context) error {
+	h := mw(func(c *echo.Context) error {
 		return nil
 	})
 	err = h(c)
@@ -205,7 +205,7 @@ func TestTraceServer(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://localhost:8080/accounts/acctrefid/transactions", nil)
 	rec := httptest.NewRecorder()
 	mw := TraceServer(tracer)
-	h := mw(func(c echo.Context) error {
+	h := mw(func(c *echo.Context) error {
 		return nil
 	})
 	assert.NoError(t, err)
@@ -251,7 +251,7 @@ func TestTraceServerWithConfig(t *testing.T) {
 	req := httptest.NewRequest("GET", "http://localhost:8080/accounts/acctrefid/transactions", nil)
 	req.Header.Add("Client-Correlation-Id", "c98404736319")
 	rec := httptest.NewRecorder()
-	tags := func(c echo.Context) map[string]string {
+	tags := func(c *echo.Context) map[string]string {
 		tags := make(map[string]string)
 		correlationID := c.Request().Header.Get("Client-Correlation-Id")
 		tags["Client-Correlation-Id"] = correlationID
@@ -259,7 +259,7 @@ func TestTraceServerWithConfig(t *testing.T) {
 	}
 	config := TraceServerConfig{Skipper: middleware.DefaultSkipper, SpanTags: tags, Tracer: tracer}
 	mw := TraceServerWithConfig(config)
-	h := mw(func(c echo.Context) error {
+	h := mw(func(c *echo.Context) error {
 		return nil
 	})
 	assert.NoError(t, err)
@@ -292,11 +292,11 @@ func TestTraceServerWithConfigSkipper(t *testing.T) {
 	traceTags["availability_zone"] = "us-east-1"
 	req := httptest.NewRequest("GET", "http://localhost:8080/health", nil)
 	rec := httptest.NewRecorder()
-	config := TraceServerConfig{Skipper: func(c echo.Context) bool {
+	config := TraceServerConfig{Skipper: func(c *echo.Context) bool {
 		return c.Request().URL.Path == "/health"
 	}, Tracer: tracer}
 	mw := TraceServerWithConfig(config)
-	h := mw(func(c echo.Context) error {
+	h := mw(func(c *echo.Context) error {
 		return nil
 	})
 	assert.NoError(t, err)
