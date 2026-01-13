@@ -21,7 +21,6 @@ import (
 	"github.com/labstack/echo-contrib/internal/helpers"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
-	"github.com/labstack/gommon/log"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/prometheus/common/expfmt"
@@ -399,7 +398,6 @@ func RunPushGatewayGatherer(ctx context.Context, config PushGatewayConfig) error
 	}
 	if config.ErrorHandler == nil {
 		config.ErrorHandler = func(err error) error {
-			log.Error(err)
 			return nil
 		}
 	}
