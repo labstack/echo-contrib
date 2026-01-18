@@ -6,7 +6,7 @@ require (
 	github.com/casbin/casbin/v2 v2.135.0
 	github.com/gorilla/context v1.1.2
 	github.com/gorilla/sessions v1.4.0
-	github.com/labstack/echo/v5 v5.0.0-20260101135421-ec9232814e7b
+	github.com/labstack/echo/v5 v5.0.0-20260118161441-9500f2745481
 	github.com/opentracing/opentracing-go v1.2.0
 	github.com/openzipkin/zipkin-go v0.4.3
 	github.com/prometheus/client_golang v1.23.2
