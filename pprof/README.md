@@ -1,21 +1,22 @@
 Usage
 
-```code go
+```go
 package main
 
 import (
-	"net/http"
+	"log/slog"
 
-	"github.com/labstack/echo/v4"
-	"github.com/labstack/echo-contrib/pprof"
-
+	"github.com/labstack/echo-contrib/v5/pprof"
+	"github.com/labstack/echo/v5"
 )
 
 func main() {
 	e := echo.New()
 	pprof.Register(e)
-    ......
-	e.Logger.Fatal(e.Start(":1323"))
+	//......
+	if err := e.Start(":1323"); err != nil {
+		slog.Error("failed to start server", "error", err)
+	}
 }
 ```
 

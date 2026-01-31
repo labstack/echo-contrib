@@ -10,7 +10,7 @@ Simple example:
 	import (
 		"github.com/casbin/casbin/v2"
 		"github.com/labstack/echo/v5"
-		casbin_mw "github.com/labstack/echo-contrib/casbin"
+		casbin_mw "github.com/labstack/echo-contrib/v5/casbin"
 	)
 
 	func main() {
@@ -29,7 +29,7 @@ Advanced example:
 	import (
 		"github.com/casbin/casbin/v2"
 		"github.com/labstack/echo/v5"
-		casbin_mw "github.com/labstack/echo-contrib/casbin"
+		casbin_mw "github.com/labstack/echo-contrib/v5/casbin"
 	)
 
 	func main() {
