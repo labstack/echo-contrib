@@ -261,7 +261,15 @@ func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 			if url == "" && !conf.DoNotUseRequestPathFor404 {
 				// as of Echo v4.10.1 path is empty for 404 cases (when router did not find any matching routes)
 				// in this case we use actual path from request to have some distinction in Prometheus
-				url = c.Request().URL.Path
+
+				// Referencing Go documentation (https://cs.opensource.google/go/go/+/refs/tags/go1.21.3:src/net/url/url.go;l=357-359):
+				// We first check the RawPath, which is the original, escaped form. It's important to check RawPath first because
+				// it preserves the original encoding of the URL. Using Path (decoded form) can sometimes result invalid UTF-8 characters.
+				if c.Request().URL.RawPath != "" {
+					url = c.Request().URL.RawPath
+				} else {
+					url = c.Request().URL.Path
+				}
 			}
 
 			status := conf.StatusCodeResolver(c, err)

@@ -448,3 +448,22 @@ func unregisterDefaults(subsystem string) {
 		Help:      "The HTTP request sizes in bytes.",
 	})
 }
+
+func TestToMiddleware_RawPath(t *testing.T) {
+	middleware, err := MiddlewareConfig{}.ToMiddleware()
+	assert.NoError(t, err)
+
+	next := echo.HandlerFunc(func(c echo.Context) error {
+		return nil
+	})
+
+	handler := middleware(next)
+
+	e := echo.New()
+
+	req := httptest.NewRequest(http.MethodGet, "/v1/%a1", http.NoBody)
+	rec := httptest.NewRecorder()
+	echoContext := e.NewContext(req, rec)
+
+	assert.NoError(t, handler(echoContext))
+}
