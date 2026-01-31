@@ -2,6 +2,8 @@ module github.com/labstack/echo-contrib
 
 go 1.24.0
 
+retract v0.50.0 // For Echo v5 use `github.com/labstack/echo-contrib@v5` major version release series istead
+
 require (
 	github.com/casbin/casbin/v2 v2.134.0
 	github.com/gorilla/context v1.1.2
