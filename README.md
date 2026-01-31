@@ -7,18 +7,24 @@
 * [Official website](https://echo.labstack.com)
 * [All middleware docs](https://echo.labstack.com/docs/category/middleware)
 
+## Usage
+
+For Echo `v5` support:
+```bash
+go get github.com/labstack/echo-contrib/v5
+```
+
 ## Versioning
 
 This repository does not use semantic versioning. MAJOR version tracks which Echo version should be used. MINOR version
-tracks API changes (possibly backwards incompatible, which is very rare occasion), and a PATCH version is incremented for fixes.
+tracks API changes (possibly backwards incompatible, which is a very rare occasion), and a PATCH version is incremented for fixes.
 
 > **Always add at least one integration test in your project.**
 
-For Echo `v5` use `v5.x.y` releases.
 Minimal needed Echo versions:
 
-* `v5.x.y` needs Echo `v5.0.0+`, use `go get github.com/labstack/echo-contrib@v5`
-* `v0.18.0` needs Echo `v4.15.0+`, use `go get github.com/labstack/echo-contrib@v0.18.0`
+* `v5.x.y` needs Echo `v5.0.0+`, use `go get github.com/labstack/echo-contrib/v5@latest`
+* `v0.18.0` needs Echo `v4.15.0+`, use `go get github.com/labstack/echo-contrib@v0`
 
 For `v0.x.y` releases the code is located in `v4` branch.
 
