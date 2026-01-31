@@ -1,45 +1,58 @@
 # Usage
 Simple example:
 ```go
-	package main
+package main
 
-	import (
-		"github.com/casbin/casbin/v2"
-		"github.com/labstack/echo/v4"
-		casbin_mw "github.com/labstack/echo-contrib/casbin"
-	)
+import (
+	"log/slog"
 
-	func main() {
-		e := echo.New()
+	"github.com/casbin/casbin/v2"
+	casbin_mw "github.com/labstack/echo-contrib/v5/casbin"
+	"github.com/labstack/echo/v5"
+)
 
-		// Mediate the access for every request
-		e.Use(casbin_mw.Middleware(casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")))
+func main() {
+	e := echo.New()
 
-		e.Logger.Fatal(e.Start(":1323"))
+	// Mediate the access for every request
+	enforcer, err := casbin.NewEnforcer("auth_model.conf", "auth_policy.csv")
+	if err != nil {
+		slog.Error("failed to load casbin enforcer", "error", err)
 	}
+	e.Use(casbin_mw.Middleware(enforcer))
+
+	if err := e.Start(":1323"); err != nil {
+		slog.Error("failed to start server", "error", err)
+	}
+}
+
 ```
 
 Advanced example:
 ```go
-	package main
+package main
 
-	import (
-		"github.com/casbin/casbin/v2"
-		"github.com/labstack/echo/v4"
-		casbin_mw "github.com/labstack/echo-contrib/casbin"
-	)
+import (
+	"log/slog"
 
-	func main() {
-		ce, _ := casbin.NewEnforcer("auth_model.conf", "")
-		ce.AddRoleForUser("alice", "admin")
-		ce.AddPolicy("added_user", "data1", "read")
-		
-		e := echo.New()
+	"github.com/casbin/casbin/v2"
+	casbin_mw "github.com/labstack/echo-contrib/v5/casbin"
+	"github.com/labstack/echo/v5"
+)
 
-		e.Use(casbin_mw.Middleware(ce))
+func main() {
+	ce, _ := casbin.NewEnforcer("auth_model.conf", "")
+	ce.AddRoleForUser("alice", "admin")
+	ce.AddPolicy(...)
 
-		e.Logger.Fatal(e.Start(":1323"))
+	e := echo.New()
+
+	e.Use(casbin_mw.Middleware(ce))
+
+	if err := e.Start(":1323"); err != nil {
+		slog.Error("failed to start server", "error", err)
 	}
+}
 ```
 
 # API Reference
