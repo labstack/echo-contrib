@@ -6,7 +6,6 @@ package session
 import (
 	"fmt"
 
-	"github.com/gorilla/context"
 	"github.com/gorilla/sessions"
 	"github.com/labstack/echo/v5"
 	"github.com/labstack/echo/v5/middleware"
@@ -68,7 +67,6 @@ func MiddlewareWithConfig(config Config) echo.MiddlewareFunc {
 			if config.Skipper(c) {
 				return next(c)
 			}
-			defer context.Clear(c.Request())
 			c.Set(key, config.Store)
 			return next(c)
 		}
