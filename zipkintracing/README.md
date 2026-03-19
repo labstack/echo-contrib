@@ -1,5 +1,8 @@
 # Tracing Library for Go
 
+> Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/openzipkin-contrib/zipkin-otel and https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/zipkinexporter
+> `Go app -> OTLP -> OpenTelemetry Collector -> Zipkin`
+
 This library provides tracing for go using [Zipkin](https://zipkin.io/)
  
 ## Usage

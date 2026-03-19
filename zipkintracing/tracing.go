@@ -51,12 +51,16 @@ var (
 )
 
 // DoHTTP is a http zipkin tracer implementation of HTTPDoer
+//
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/openzipkin-contrib/zipkin-otel and https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/zipkinexporter
 func DoHTTP(c *echo.Context, r *http.Request, client *zipkinhttp.Client) (*http.Response, error) {
 	req := r.WithContext(c.Request().Context())
 	return client.DoWithAppSpan(req, req.Method)
 }
 
 // TraceFunc wraps function call with span so that we can trace time taken by func, eventContext only provided if we want to store trace headers
+//
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/openzipkin-contrib/zipkin-otel and https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/zipkinexporter
 func TraceFunc(c *echo.Context, spanName string, spanTags Tags, tracer *zipkin.Tracer) func() {
 	span, _ := tracer.StartSpanFromContext(c.Request().Context(), spanName)
 	for key, value := range spanTags(c) {
@@ -71,6 +75,8 @@ func TraceFunc(c *echo.Context, spanName string, spanTags Tags, tracer *zipkin.T
 }
 
 // TraceProxy middleware that traces reverse proxy
+//
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/openzipkin-contrib/zipkin-otel and https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/zipkinexporter
 func TraceProxy(tracer *zipkin.Tracer) echo.MiddlewareFunc {
 	config := DefaultTraceProxyConfig
 	config.Tracer = tracer
@@ -78,6 +84,8 @@ func TraceProxy(tracer *zipkin.Tracer) echo.MiddlewareFunc {
 }
 
 // TraceProxyWithConfig middleware that traces reverse proxy
+//
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/openzipkin-contrib/zipkin-otel and https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/zipkinexporter
 func TraceProxyWithConfig(config TraceProxyConfig) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
@@ -116,6 +124,8 @@ func TraceProxyWithConfig(config TraceProxyConfig) echo.MiddlewareFunc {
 }
 
 // TraceServer middleware that traces server calls
+//
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/openzipkin-contrib/zipkin-otel and https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/zipkinexporter
 func TraceServer(tracer *zipkin.Tracer) echo.MiddlewareFunc {
 	config := DefaultTraceServerConfig
 	config.Tracer = tracer
@@ -123,6 +133,8 @@ func TraceServer(tracer *zipkin.Tracer) echo.MiddlewareFunc {
 }
 
 // TraceServerWithConfig middleware that traces server calls
+//
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/openzipkin-contrib/zipkin-otel and https://github.com/open-telemetry/opentelemetry-collector-contrib/tree/main/exporter/zipkinexporter
 func TraceServerWithConfig(config TraceServerConfig) echo.MiddlewareFunc {
 	return func(next echo.HandlerFunc) echo.HandlerFunc {
 		return func(c *echo.Context) error {
