@@ -7,6 +7,12 @@
 * [Official website](https://echo.labstack.com)
 * [All middleware docs](https://echo.labstack.com/docs/category/middleware)
 
+## Deprecations / alternatives
+
+1. Prometheus middleware has a new separate repository - https://github.com/labstack/echo-prometheus
+2. Jaeger middleware is deprecated, use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + [OTLP exporters](https://opentelemetry.io/docs/languages/go/exporters/).
+3. Zipkin middleware is deprecated, use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + [OTLP exporters](https://opentelemetry.io/docs/languages/go/exporters/).
+
 ## Usage
 
 For Echo `v5` support:
