@@ -1,6 +1,6 @@
 # Usage
 
-Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters
+Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters
 
 ```go
 package main

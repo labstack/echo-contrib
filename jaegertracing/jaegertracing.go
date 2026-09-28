@@ -25,7 +25,7 @@ import (
 
 ```
 
-Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
+Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
 */
 package jaegertracing
 
@@ -93,7 +93,7 @@ var (
 // New creates an Opentracing tracer and attaches it to Echo middleware.
 // Returns Closer do be added to caller function as `defer closer.Close()`
 //
-// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
 func New(e *echo.Echo, skipper middleware.Skipper) io.Closer {
 	// Add Opentracing instrumentation
 	defcfg := config.Configuration{
@@ -127,7 +127,7 @@ func New(e *echo.Echo, skipper middleware.Skipper) io.Closer {
 // Trace returns a Trace middleware.
 // Trace middleware traces http requests and reporting errors.
 //
-// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
 func Trace(tracer opentracing.Tracer) echo.MiddlewareFunc {
 	c := DefaultTraceConfig
 	c.Tracer = tracer
@@ -138,7 +138,7 @@ func Trace(tracer opentracing.Tracer) echo.MiddlewareFunc {
 // TraceWithConfig returns a Trace middleware with config.
 // See: `Trace()`.
 //
-// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
 func TraceWithConfig(config TraceConfig) echo.MiddlewareFunc {
 	if config.Tracer == nil {
 		panic("echo: trace middleware requires opentracing tracer")
@@ -288,7 +288,7 @@ func defaultOperationName(c *echo.Context) string {
 
 // TraceFunction wraps funtion with opentracing span adding tags for the function name and caller details
 //
-// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
 func TraceFunction(ctx *echo.Context, fn interface{}, params ...interface{}) (result []reflect.Value) {
 	// Get function name
 	name := runtime.FuncForPC(reflect.ValueOf(fn).Pointer()).Name()
@@ -325,7 +325,7 @@ func TraceFunction(ctx *echo.Context, fn interface{}, params ...interface{}) (re
 // CreateChildSpan creates a new opentracing span adding tags for the span name and caller details.
 // User must call defer `sp.Finish()`
 //
-// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
 func CreateChildSpan(ctx *echo.Context, name string) opentracing.Span {
 	parentSpan := opentracing.SpanFromContext(ctx.Request().Context())
 	sp := opentracing.StartSpan(
@@ -346,7 +346,7 @@ func CreateChildSpan(ctx *echo.Context, name string) opentracing.Span {
 
 // NewTracedRequest generates a new traced HTTP request with opentracing headers injected into it
 //
-// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
+// Deprecated: use [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters. Read this: https://github.com/jaegertracing/jaeger-client-go
 func NewTracedRequest(method string, url string, body io.Reader, span opentracing.Span) (*http.Request, error) {
 	req, err := http.NewRequest(method, url, body)
 	if err != nil {
