@@ -4,7 +4,7 @@
 /*
 Package echoprometheus provides middleware to add Prometheus metrics.
 
-Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters
+Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters
 */
 package echoprometheus
 
@@ -118,7 +118,7 @@ type PushGatewayConfig struct {
 
 // NewHandler creates new instance of Handler using Prometheus default registry.
 //
-// Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters
+// Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters
 func NewHandler() echo.HandlerFunc {
 	return NewHandlerWithConfig(HandlerConfig{})
 }
@@ -142,14 +142,14 @@ func NewHandlerWithConfig(config HandlerConfig) echo.HandlerFunc {
 
 // NewMiddleware creates new instance of middleware using Prometheus default registry.
 //
-// Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters
+// Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters
 func NewMiddleware(subsystem string) echo.MiddlewareFunc {
 	return NewMiddlewareWithConfig(MiddlewareConfig{Subsystem: subsystem})
 }
 
 // NewMiddlewareWithConfig creates new instance of middleware using given configuration.
 //
-// Deprecated: use [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters
+// Deprecated: use [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters
 func NewMiddlewareWithConfig(config MiddlewareConfig) echo.MiddlewareFunc {
 	mw, err := config.ToMiddleware()
 	if err != nil {
@@ -160,7 +160,7 @@ func NewMiddlewareWithConfig(config MiddlewareConfig) echo.MiddlewareFunc {
 
 // ToMiddleware converts configuration to middleware or returns an error.
 //
-// Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters
+// Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters
 func (conf MiddlewareConfig) ToMiddleware() (echo.MiddlewareFunc, error) {
 	if conf.timeNow == nil {
 		conf.timeNow = time.Now
@@ -397,7 +397,7 @@ func computeApproximateRequestSize(r *http.Request) int {
 //
 // ```
 //
-// Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-opentelemetry) instead + OTLP exporters
+// Deprecated: use new repository [echo-prometheus middleware](https://github.com/labstack/echo-prometheus) or [OpenTelemetry middleware](https://github.com/labstack/echo-otel) instead + OTLP exporters
 func RunPushGatewayGatherer(ctx context.Context, config PushGatewayConfig) error {
 	if config.PushGatewayURL == "" {
 		return errors.New("push gateway URL is missing")
