@@ -1,0 +1,143 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+  workflow_dispatch:
+
+permissions:
+  contents: read # to fetch code (actions/checkout)
+
+# Cancel superseded runs of the same pull request; runs on master always finish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  LATEST_GO_VERSION: "1.27"
+
+  # https://github.com/actions/checkout/commit/df4cb1c069e1874edd31b4311f1884172cec0e10
+  CHECKOUT_ACTION: &checkout_action actions/checkout@df4cb1c069e1874edd31b4311f1884172cec0e10 # v6
+
+  # https://github.com/actions/setup-go/commit/924ae3a1cded613372ab5595356fb5720e22ba16
+  SETUP_GO_ACTION: &setup_go_action actions/setup-go@924ae3a1cded613372ab5595356fb5720e22ba16 # v6
+
+  # https://github.com/actions/cache/commit/55cc8345863c7cc4c66a329aec7e433d2d1c52a9
+  CACHE_RESTORE_ACTION: &cache_restore_action actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+  CACHE_SAVE_ACTION: &cache_save_action actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+
+  # https://github.com/codecov/codecov-action/commit/fb8b3582c8e4def4969c97caa2f19720cb33a72f
+  CODECOV_ACTION: &codecov_action codecov/codecov-action@fb8b3582c8e4def4969c97caa2f19720cb33a72f # v7
+
+jobs:
+  test:
+    strategy:
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        # Each major Go release is supported until there are two newer major releases. https://golang.org/doc/devel/release.html#policy
+        # Echo CORE tests with last four major releases (unless there are pressing vulnerabilities)
+        # As we depend on MANY DIFFERENT libraries which of SOME support last 2 Go releases we could have situations when
+        # we derive from last four major releases promise.
+        go: ["1.25", "1.26", "1.27"]
+    name: ${{ matrix.os }} @ Go ${{ matrix.go }}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout Code
+        uses: *checkout_action
+
+      - name: Set up Go ${{ matrix.go }}
+        uses: *setup_go_action
+        with:
+          go-version: ${{ matrix.go }}
+          cache: false
+
+      # setup-go's built-in cache is keyed on go.sum only, so its entry is never refreshed and
+      # soon holds little of the current build. Restore the latest cache saved for this job
+      # instead, and save a new one after runs other than pull requests, which only restore.
+      - name: Find Go Cache
+        id: go-cache
+        shell: bash
+        run: |
+          {
+            echo "build=$(go env GOCACHE)"
+            echo "mod=$(go env GOMODCACHE)"
+            echo "key=go-${{ runner.os }}-${{ runner.arch }}-$(go env GOVERSION)-${{ github.job }}"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Restore Go Cache
+        id: go-cache-restore
+        uses: *cache_restore_action
+        with:
+          path: |
+            ${{ steps.go-cache.outputs.build }}
+            ${{ steps.go-cache.outputs.mod }}
+          key: ${{ steps.go-cache.outputs.key }}-${{ github.sha }}
+          restore-keys: ${{ steps.go-cache.outputs.key }}-
+
+      - name: CI
+        run: go test -race --coverprofile=coverage.coverprofile --covermode=atomic ./...
+
+      - name: Save Go Cache
+        if: github.event_name != 'pull_request' && steps.go-cache-restore.outputs.cache-hit != 'true'
+        uses: *cache_save_action
+        with:
+          path: |
+            ${{ steps.go-cache.outputs.build }}
+            ${{ steps.go-cache.outputs.mod }}
+          key: ${{ steps.go-cache.outputs.key }}-${{ github.sha }}
+
+      - name: Upload coverage to Codecov
+        if: success() && matrix.go == env.LATEST_GO_VERSION && matrix.os == 'ubuntu-latest'
+        uses: *codecov_action
+        with:
+          token:
+          fail_ci_if_error: false
+
+  benchmark:
+    # Compares the pull request against its base branch. github.base_ref is only set for
+    # pull_request events, so on other events both checkouts would be the same commit.
+    if: github.event_name == 'pull_request'
+    needs: test
+    name: Benchmark comparison
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code (Previous)
+        uses: *checkout_action
+        with:
+          ref: ${{ github.base_ref }}
+          path: previous
+
+      - name: Checkout Code (New)
+        uses: *checkout_action
+        with:
+          path: new
+
+      - name: Set up Go
+        uses: *setup_go_action
+        with:
+          go-version: ${{ env.LATEST_GO_VERSION }}
+          cache: false
+
+      - name: Install Dependencies
+        run: go install golang.org/x/perf/cmd/benchstat@latest
+
+      # -benchtime=100ms instead of the default 1s keeps the job to a few minutes. The
+      # comparison is advisory: it reports differences but never fails the build.
+      - name: Run Benchmark (Previous)
+        run: |
+          cd previous
+          go test -run="-" -bench=".*" -benchtime=100ms -count=8 ./... > benchmark.txt
+
+      - name: Run Benchmark (New)
+        run: |
+          cd new
+          go test -run="-" -bench=".*" -benchtime=100ms -count=8 ./... > benchmark.txt
+
+      - name: Run Benchstat
+        run: |
+          benchstat previous/benchmark.txt new/benchmark.txt
+
