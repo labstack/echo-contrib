@@ -78,7 +78,7 @@ jobs:
           key: ${{ steps.go-cache.outputs.key }}-${{ github.sha }}
           restore-keys: ${{ steps.go-cache.outputs.key }}-
 
-      - name: CI
+      - name: Run Tests
         run: go test -race --coverprofile=coverage.coverprofile --covermode=atomic ./...
 
       - name: Save Go Cache
