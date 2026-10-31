@@ -340,6 +340,32 @@ func TestRunPushGatewayGatherer(t *testing.T) {
 	unregisterDefaults("myapp")
 }
 
+func TestRunPushGatewayGatherer_unreachableGatewayDoesNotPanic(t *testing.T) {
+	svr := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {}))
+	unreachableURL := svr.URL
+	svr.Close() // connections to this URL now fail, so client.Do returns an error and a nil response
+
+	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
+	defer cancel()
+
+	var handledErrs []error
+	config := PushGatewayConfig{
+		PushGatewayURL: unreachableURL,
+		PushInterval:   10 * time.Millisecond,
+		Gatherer:       prometheus.NewRegistry(),
+		ErrorHandler: func(err error) error {
+			handledErrs = append(handledErrs, err)
+			return nil // keep pushing, like the default ErrorHandler
+		},
+	}
+	err := RunPushGatewayGatherer(ctx, config)
+
+	assert.ErrorIs(t, err, context.DeadlineExceeded)
+	if assert.NotEmpty(t, handledErrs) {
+		assert.ErrorContains(t, handledErrs[0], "error sending to push gateway")
+	}
+}
+
 // TestSetPathFor404NoMatchingRoute tests that the url is not included in the metric when
 // the 404 response is due to no matching route
 func TestSetPathFor404NoMatchingRoute(t *testing.T) {
