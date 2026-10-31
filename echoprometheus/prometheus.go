@@ -444,7 +444,10 @@ func RunPushGatewayGatherer(ctx context.Context, config PushGatewayConfig) error
 				if hErr := config.ErrorHandler(fmt.Errorf("error sending to push gateway: %w", err)); hErr != nil {
 					return hErr
 				}
+				continue // res is nil when client.Do returns an error
 			}
+			_, _ = io.Copy(io.Discard, res.Body)
+			_ = res.Body.Close()
 			if res.StatusCode != http.StatusOK {
 				if hErr := config.ErrorHandler(echo.NewHTTPError(res.StatusCode, "post metrics request did not succeed")); hErr != nil {
 					return hErr
